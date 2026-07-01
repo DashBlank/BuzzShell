@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Quiz Buzzer Lobby</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        /* Keep all your original structural layout styling logic identical, adding only layout-stabilizers: */
+        
+        /* 1 & 2: Structural visibility overrides to prevent any element shifting */
+        .strategy-box.hidden,
+        .timer-display.hidden {
+            display: block !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        /* 3: Float the verification strip at the bottom of the viewport so it never shifts the layout */
+        .validation-box {
+            position: fixed !important;
+            bottom: 20px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: #1e293b !important;
+            border: 2px solid #ffa502 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+            z-index: 99999 !important;
+            width: 90% !important;
+            max-width: 450px !important;
+            text-align: center !important;
+        }
+
+        /* 4: Mid-round administrative lockdown state styling */
+        .disabled-deck {
+            opacity: 0.4 !important;
+            pointer-events: none !important;
+            cursor: not-allowed !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper" class="game-viewport">
+        
+        <div id="setup" class="setup">
+            <h1>QUIZ SHOW LOBBY</h1>
+            <div class="timer-control" style="border-left-color: #ff4757; width: 100%;">
+                <input type="text" id="username" placeholder="Enter Your Nickname..." autocomplete="off">
+                <p class="host-label">Are you the Quizmaster? Enter Authentication:</p>
+                <input type="password" id="host-password" placeholder="Host Access Token..." autocomplete="off">
+                <button class="btn-join" onclick="joinGame()">ENTER ARENA</button>
+            </div>
+        </div>
+
+        <div id="game" class="game-container hidden">
+            
+            <div class="arena-header">
+                <h1>STAGE ARENA</h1>
+                
+                <div class="settings-menu-wrapper">
+                    <button class="settings-gear-btn" aria-label="Toggle Arena Rules">⚙️ Rules</button>
+                    <div class="settings-dropdown-panel">
+                        <div class="dropdown-header">Active Match Rules</div>
+                        <div class="rule-row">
+                            <span class="rule-name">Multiplier Streaks</span>
+                            <span id="badge-streaks" class="rule-status-badge badge-off">OFF</span>
+                        </div>
+                        <div class="rule-row">
+                            <span class="rule-name">Double Down Mode</span>
+                            <span id="badge-doubledown" class="rule-status-badge badge-off">OFF</span>
+                        </div>
+                        <div class="rule-row">
+                            <span class="rule-name">Countdown Timer</span>
+                            <span id="badge-timer" class="rule-status-badge badge-off">OFF</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="host-validation-box" class="validation-box hidden">
+                <p style="margin: 0 0 12px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #ffa502; font-weight: 700;">
+                    🚨 ANSWER VERIFICATION HOT SEAT
+                </p>
+                <div style="font-size: 20px; font-weight: 800; margin-bottom: 20px; color: #fff;">
+                    Player: <span id="active-player-name" style="color: #ff4757;">-</span>
+                </div>
+                <div style="display: flex; justify-content: center; width: 100%;">
+                    <button class="btn-correct" onclick="validateAnswer(true)">CORRECT</button>
+                    <button class="btn-wrong" onclick="validateAnswer(false)">WRONG</button>
+                </div>
+            </div>
+
+            <div id="timer-display" class="timer-display">
+                Timer: Ready
+            </div>
+
+            <div id="player-strategy-box" class="strategy-box">
+                <label class="double-down-label">
+                    <input type="checkbox" id="player-dd-checkbox"> 
+                    💥 DOUBLE DOWN (Gain 20pts / Lose 15pts)
+                </label>
+            </div>
+
+            <button id="buzzer-btn" class="buzzer-btn" onclick="pressBuzzer()">BUZZ</button>
+
+            <div class="lists-section">
+                
+                <div class="list-box">
+                    <h3>⚡ Buzz Sequence Order</h3>
+                    <ol id="buzz-list"></ol>
+                </div>
+
+                <div class="list-box">
+                    <h3>🏆 Leaderboard</h3>
+                    <table class="score-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Player</th>
+                                <th style="text-align: right;">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scores-tbody">
+                            </tbody>
+                    </table>
+                </div>
+                
+            </div>
+
+            <button id="clear-btn" class="btn-clear hidden" onclick="clearBuzzers()">
+                🔄 RESET CURRENT QUESTION ROUND
+            </button>
+          
+            <div id="host-controls" class="timer-control hidden" style="margin-top: 25px; border-left-color: #2ed573;">
+                <p id="deck-headline" class="host-label" style="margin-top:0; color: #2ed573; text-align: center;">👑 QUIZMASTER ADMINISTRATIVE DECK</p>
+                
+                <div id="deck-interactive-fields">
+                    <div style="margin-bottom: 20px; text-align: center;">
+                        <label for="time-input" style="font-weight:600; color:#cbd5e1;">Countdown Limit:</label>
+                        <input type="number" id="time-input" value="10" min="3" max="60">
+                        <span style="color:#94a3b8; font-size:14px; margin-left:4px;">seconds</span>
+                    </div>
+
+                    <div class="switch-matrix">
+                        <div class="switch-row">
+                            <span class="switch-title" style="color: #ff9f43;">🔥 Multiplier Streaks</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="streak-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="switch-row">
+                            <span class="switch-title" style="color: #ff4757;">💥 Double Down Strategy</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="doubledown-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="switch-row">
+                            <span class="switch-title" style="color: #ffa502;">⏱️ Countdown Timer Mode</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="timer-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; display: flex; justify-content: center;">
+                    <button id="reset-scores-btn" onclick="resetScoreboard()" class="btn-clear" style="margin: 0; background: linear-gradient(135deg, #ee5253, #ff4757); display: inline-block; width: auto; padding: 10px 20px;">
+                        🔄 RESET ALL PLAYER SCORES
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
