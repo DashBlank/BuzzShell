@@ -25,10 +25,10 @@ The codebase is organized into modular files:
 
 ```
 quiz-buzzer-webrtc/
-├── index.html   # Clean HTML5 markup, screen layouts (Role Entry, Host Dashboard, Player View)
-├── style.css    # Techno-Terminal / Cyberpunk HUD styling, glowing badges, animated banners
-├── app.js       # Complete P2P engine logic, WebAudio synthesizer, NTP clocksync, state machine
-└── README.md    # Documentation and quick start manual
+├── quiz_buzzer.html   # Clean HTML5 markup, screen layouts (Role Entry, Host Dashboard, Player View)
+├── quiz_buzzer.css    # Techno-Terminal / Cyberpunk HUD styling, glowing badges, animated banners
+├── quiz_buzzer.js     # Complete P2P engine logic, WebAudio synthesizer, NTP clocksync, state machine
+└── README.md          # Documentation and quick start manual
 ```
 
 ---
