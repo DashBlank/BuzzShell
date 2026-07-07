@@ -3,187 +3,276 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Quiz Buzzer Lobby</title>
+    <title>Q-TERMINAL // P2P QUIZ BUZZER</title>
+    
+    <!-- Google Fonts: JetBrains Mono (Terminal look) & Orbitron (Cyberpunk HUD look) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <style>
-        /* Keep all your original structural layout styling logic identical, adding only layout-stabilizers: */
-        
-        /* 1 & 2: Structural visibility overrides to prevent any element shifting */
-        .strategy-box.hidden,
-        .timer-display.hidden {
-            display: block !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- PeerJS CDN: Used only as the initial broker signaling channel for WebRTC direct connection -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-        /* 3: Float the verification strip at the bottom of the viewport so it never shifts the layout */
-        .validation-box {
-            position: fixed !important;
-            bottom: 20px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            background: #1e293b !important;
-            border: 2px solid #ffa502 !important;
-            border-radius: 12px !important;
-            padding: 20px !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
-            z-index: 99999 !important;
-            width: 90% !important;
-            max-width: 450px !important;
-            text-align: center !important;
-        }
-
-        /* 4: Mid-round administrative lockdown state styling */
-        .disabled-deck {
-            opacity: 0.4 !important;
-            pointer-events: none !important;
-            cursor: not-allowed !important;
-        }
-    </style>
+    <!-- Project Stylesheet link -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div id="game-wrapper" class="game-viewport">
+    <!-- ==========================================
+         SCREEN 1: ROLE SELECTION / LOBBY ENTRY
+         ========================================== -->
+    <div id="role-screen" class="screen-container screen-active">
+        <h1 class="role-title">Q-TERMINAL</h1>
         
-        <div id="setup" class="setup">
-            <h1>QUIZ SHOW LOBBY</h1>
-            <div class="timer-control" style="border-left-color: #ff4757; width: 100%;">
-                <input type="text" id="username" placeholder="Enter Your Nickname..." autocomplete="off">
-                <p class="host-label">Are you the Quizmaster? Enter Authentication:</p>
-                <input type="password" id="host-password" placeholder="Host Access Token..." autocomplete="off">
-                <button class="btn-join" onclick="joinGame()">ENTER ARENA</button>
+        <!-- Host Room Initialization Form -->
+        <div class="terminal-panel">
+            <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-green);">CREATE CONTROL ROOM</h2>
+            <div class="role-form">
+                <button id="btn-init-host" class="btn btn-green">LAUNCH AS HOST (QUIZMASTER)</button>
             </div>
         </div>
 
-        <div id="game" class="game-container hidden">
-            
-            <div class="arena-header">
-                <h1>STAGE ARENA</h1>
-                
-                <div class="settings-menu-wrapper">
-                    <button class="settings-gear-btn" aria-label="Toggle Arena Rules">⚙️ Rules</button>
-                    <div class="settings-dropdown-panel">
-                        <div class="dropdown-header">Active Match Rules</div>
-                        <div class="rule-row">
-                            <span class="rule-name">Multiplier Streaks</span>
-                            <span id="badge-streaks" class="rule-status-badge badge-off">OFF</span>
-                        </div>
-                        <div class="rule-row">
-                            <span class="rule-name">Double Down Mode</span>
-                            <span id="badge-doubledown" class="rule-status-badge badge-off">OFF</span>
-                        </div>
-                        <div class="rule-row">
-                            <span class="rule-name">Countdown Timer</span>
-                            <span id="badge-timer" class="rule-status-badge badge-off">OFF</span>
-                        </div>
-                    </div>
-                </div>
+        <div class="role-section-divider">OR</div>
+
+        <!-- Player Lobby Join Form -->
+        <div class="terminal-panel">
+            <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-amber);">ENTER GAME LOBBY</h2>
+            <div class="role-form">
+                <input type="text" id="input-player-name" placeholder="YOUR USERNAME" maxlength="15" autocomplete="off">
+                <input type="text" id="input-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off">
+                <button id="btn-init-player" class="btn btn-amber">CONNECT PEER-TO-PEER</button>
             </div>
-
-            <div id="host-validation-box" class="validation-box hidden">
-                <p style="margin: 0 0 12px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #ffa502; font-weight: 700;">
-                    🚨 ANSWER VERIFICATION HOT SEAT
-                </p>
-                <div style="font-size: 20px; font-weight: 800; margin-bottom: 20px; color: #fff;">
-                    Player: <span id="active-player-name" style="color: #ff4757;">-</span>
-                </div>
-                <div style="display: flex; justify-content: center; width: 100%;">
-                    <button class="btn-correct" onclick="validateAnswer(true)">CORRECT</button>
-                    <button class="btn-wrong" onclick="validateAnswer(false)">WRONG</button>
-                </div>
-            </div>
-
-            <div id="timer-display" class="timer-display">
-                Timer: Ready
-            </div>
-
-            <div id="player-strategy-box" class="strategy-box">
-                <label class="double-down-label">
-                    <input type="checkbox" id="player-dd-checkbox"> 
-                    💥 DOUBLE DOWN (Gain 20pts / Lose 15pts)
-                </label>
-            </div>
-
-            <button id="buzzer-btn" class="buzzer-btn" onclick="pressBuzzer()">BUZZ</button>
-
-            <div class="lists-section">
-                
-                <div class="list-box">
-                    <h3>⚡ Buzz Sequence Order</h3>
-                    <ol id="buzz-list"></ol>
-                </div>
-
-                <div class="list-box">
-                    <h3>🏆 Leaderboard</h3>
-                    <table class="score-table">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left;">Player</th>
-                                <th style="text-align: right;">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="scores-tbody">
-                            </tbody>
-                    </table>
-                </div>
-                
-            </div>
-
-            <button id="clear-btn" class="btn-clear hidden" onclick="clearBuzzers()">
-                🔄 RESET CURRENT QUESTION ROUND
-            </button>
-          
-            <div id="host-controls" class="timer-control hidden" style="margin-top: 25px; border-left-color: #2ed573;">
-                <p id="deck-headline" class="host-label" style="margin-top:0; color: #2ed573; text-align: center;">👑 QUIZMASTER ADMINISTRATIVE DECK</p>
-                
-                <div id="deck-interactive-fields">
-                    <div style="margin-bottom: 20px; text-align: center;">
-                        <label for="time-input" style="font-weight:600; color:#cbd5e1;">Countdown Limit:</label>
-                        <input type="number" id="time-input" value="10" min="3" max="60">
-                        <span style="color:#94a3b8; font-size:14px; margin-left:4px;">seconds</span>
-                    </div>
-
-                    <div class="switch-matrix">
-                        <div class="switch-row">
-                            <span class="switch-title" style="color: #ff9f43;">🔥 Multiplier Streaks</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="streak-toggle" checked>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        
-                        <div class="switch-row">
-                            <span class="switch-title" style="color: #ff4757;">💥 Double Down Strategy</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="doubledown-toggle" checked>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-                        <div class="switch-row">
-                            <span class="switch-title" style="color: #ffa502;">⏱️ Countdown Timer Mode</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="timer-toggle" checked>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-top: 20px; display: flex; justify-content: center;">
-                    <button id="reset-scores-btn" onclick="resetScoreboard()" class="btn-clear" style="margin: 0; background: linear-gradient(135deg, #ee5253, #ff4757); display: inline-block; width: auto; padding: 10px 20px;">
-                        🔄 RESET ALL PLAYER SCORES
-                    </button>
-                </div>
-            </div>
-            
         </div>
     </div>
 
-    <script src="script.js"></script>
+
+    <!-- ==========================================
+         SCREEN 2: HOST (QUIZMASTER) DASHBOARD
+         ========================================== -->
+    <div id="host-screen" class="screen-container">
+        
+        <!-- Host Header / HUD Bar -->
+        <div class="terminal-panel" style="padding: 15px 20px;">
+            <div class="player-header" style="border: none; padding: 0; margin: 0;">
+                <div class="player-info">
+                    <h2 class="text-glow-green" style="font-size: 1.3rem;">HOST DASHBOARD</h2>
+                    <!-- Room ID tag: clicking copy-tooltips copies room identifier to clipboard -->
+                    <span class="room-tag-copy" onclick="copyRoomId()">
+                        ROOM ID: <span id="host-room-id-val" style="margin-left: 6px; font-weight: bold; color: white;">----</span>
+                        <span id="copy-tooltip" class="copied-tooltip">COPIED!</span>
+                    </span>
+                </div>
+                <div class="player-stats">
+                    PEERS CONNECTED: <span id="host-peer-count" class="text-glow-green" style="font-weight: bold;">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Host Layout Grid -->
+        <div class="host-grid">
+            
+            <!-- Left panel: Settings & Roster -->
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                
+                <!-- Game Settings Panel -->
+                <div class="terminal-panel">
+                    <div class="hud-header">
+                        <span class="hud-title">Engine Rules</span>
+                    </div>
+                    <div class="config-group">
+                        <!-- Timed Rounds Toggle -->
+                        <label class="switch-container">
+                            <span>TIMED ROUNDS</span>
+                            <input type="checkbox" id="host-toggle-timed" checked onchange="toggleTimedConfig(this.checked)">
+                            <div class="custom-switch"></div>
+                        </label>
+                        
+                        <!-- Answering Countdown Duration -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">DURATION (SEC)</span>
+                            <input type="number" id="host-timer-duration" value="10" min="3" max="60" style="width: 70px; padding: 4px 8px; text-align: center;">
+                        </div>
+
+                        <!-- Double Down Mode Toggle -->
+                        <label class="switch-container" style="margin-top: 10px;">
+                            <span>DOUBLE DOWN MODE</span>
+                            <input type="checkbox" id="host-toggle-doubledown" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Streak Multipliers Toggle -->
+                        <label class="switch-container">
+                            <span>STREAK MULTIPLIERS</span>
+                            <input type="checkbox" id="host-toggle-streaks" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Lobby Scoreboard Directory -->
+                <div class="terminal-panel" style="flex-grow: 1;">
+                    <div class="hud-header">
+                        <span class="hud-title">Scoreboard & Directory</span>
+                    </div>
+                    <div style="max-height: 350px; overflow-y: auto;">
+                        <table class="directory-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Name</th>
+                                    <th>Score</th>
+                                    <th>Ping</th>
+                                </tr>
+                            </thead>
+                            <tbody id="host-directory-tbody">
+                                <!-- Dynamic player rows filled by host incoming data channel loop -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Middle panel: Central Display -->
+            <div class="central-display">
+                
+                <!-- Engine state display -->
+                <div class="terminal-panel status-box">
+                    <div class="status-label">Engine State</div>
+                    <div id="host-round-state" class="status-current text-glow-amber">STANDBY</div>
+                </div>
+
+                <!-- Digital timer display -->
+                <div class="terminal-panel timer-container">
+                    <div id="host-timer-digits" class="timer-digits text-glow-green">00.00</div>
+                </div>
+
+                <!-- Host round controls -->
+                <div class="terminal-panel host-actions">
+                    <button id="btn-start-round" class="btn btn-green btn-full" onclick="hostStartRound()">START ROUND</button>
+                    <button id="btn-clear-buzzers" class="btn" onclick="hostClearBuzzers()">CLEAR BUZZERS</button>
+                    <button id="btn-clear-scoreboard" class="btn btn-red" onclick="hostClearScoreboard()">CLEAR SCOREBOARD</button>
+                    <button id="btn-mark-correct" class="btn btn-green" disabled onclick="hostMarkAnswer(true)">CORRECT</button>
+                    <button id="btn-mark-incorrect" class="btn btn-red" disabled onclick="hostMarkAnswer(false)">INCORRECT</button>
+                </div>
+
+            </div>
+
+            <!-- Right panel: Buzz Queue -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column;">
+                <div class="hud-header">
+                    <span class="hud-title">Buzz Queue</span>
+                    <span id="queue-lockout-indicator" class="status-badge" style="display:none;">BUZZ OPEN</span>
+                </div>
+                <div class="queue-list" id="host-queue-list">
+                    <!-- Dynamic incoming buzz list sorted in real-time -->
+                </div>
+            </div>
+
+            <!-- Bottom panel: Terminal Logs console -->
+            <div class="terminal-log" id="host-terminal-log">
+                <!-- Action entries logged dynamically -->
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         SCREEN 3: PLAYER SCREEN
+         ========================================== -->
+    <div id="player-screen" class="screen-container">
+        
+        <!-- Player Header / Ping HUD Bar -->
+        <div class="terminal-panel" style="padding: 15px 20px;">
+            <div class="player-header" style="border: none; padding: 0; margin: 0;">
+                <div class="player-info">
+                    <h2 id="player-hud-name" style="font-size: 1.3rem;">PLAYER_PEER</h2>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">
+                        ROOM ID: <span id="player-hud-room-id" style="color: white; font-weight: bold;">----</span>
+                    </span>
+                </div>
+                <!-- Network synchronization stats -->
+                <div class="player-stats">
+                    RTT: <span id="player-hud-rtt" style="font-weight: bold; color: var(--accent-green);">--ms</span>
+                    &nbsp;|&nbsp;
+                    OFFSET: <span id="player-hud-offset" style="font-weight: bold; color: var(--accent-amber);">--ms</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hotseat Attention Banner (Flashes on player screen only when active hotseat turns) -->
+        <div id="banner-player-hotseat" class="attention-banner">
+            &gt;&gt; WARNING: YOU ARE IN THE HOTSEAT! RESPOND NOW &lt;&lt;
+        </div>
+
+        <!-- Warning notices banner (For locked out players / late joined warning indicators) -->
+        <div id="banner-player-warning" class="warning-banner">
+            ROUND IN PROGRESS (LATE JOINED)
+        </div>
+
+        <!-- Player Split Grid Layout -->
+        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; flex-grow: 1;">
+            
+            <!-- Left panel: Big Buzzer control -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column; justify-content: center; gap: 20px;">
+                <div class="buzzer-box">
+                    <button id="btn-player-buzz" class="buzzer-btn" disabled onclick="playerTriggerBuzz()">BUZZ</button>
+                    <!-- Local Countdown timer (synchronized via host TIMER_SYNC packets) -->
+                    <div id="player-timer-digits" class="timer-digits text-glow-green" style="font-size: 2.2rem; display:none;">10.00</div>
+                    <div id="player-status-text" style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); text-align: center; letter-spacing: 1px;">
+                        STANDBY
+                    </div>
+                </div>
+
+                <!-- Player score HUD & local double-down configurations -->
+                <div class="player-options-grid">
+                    <div class="terminal-panel" style="padding: 12px; background: rgba(10,10,15,0.4); text-align: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 5px;">MY SCORE</span>
+                        <span id="player-my-score" class="hud-value text-glow-green" style="font-size: 1.5rem;">0</span>
+                    </div>
+                    
+                    <div class="terminal-panel" style="padding: 12px; background: rgba(10,10,15,0.4); display: flex; align-items: center; justify-content: center;">
+                        <!-- Double down checkbox switch -->
+                        <label id="player-doubledown-container" class="switch-container" style="width: 100%; display: none;">
+                            <span style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted);">DOUBLE POINTS ON</span>
+                            <input type="checkbox" id="player-toggle-doubledown" onchange="playerToggleDoubleDown(this.checked)">
+                            <div class="custom-switch"></div>
+                        </label>
+                        <!-- Lock warning when double down mode disabled in room rules -->
+                        <div id="player-doubledown-disabled-msg" style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">
+                            DOUBLE DOWN LOCKED
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel: Scoreboard Directory -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column;">
+                <div class="hud-header">
+                    <span class="hud-title">LOBBY DIRECTORY</span>
+                </div>
+                <div style="flex-grow: 1; overflow-y: auto;">
+                    <table class="directory-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Name</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="player-directory-tbody">
+                            <!-- Dynamic lobby rows updated via Host broadcast -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Script Block containing Game Engine Logic -->
+    <script src="app.js"></script>
 </body>
 </html>
