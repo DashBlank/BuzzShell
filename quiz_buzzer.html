@@ -26,9 +26,18 @@
         
         <!-- Host Room Initialization Form -->
         <div class="terminal-panel">
-            <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-green);">CREATE CONTROL ROOM</h2>
+            <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-green);">CREATE / RECLAIM CONTROL ROOM</h2>
             <div class="role-form">
-                <button id="btn-init-host" class="btn btn-green">LAUNCH AS HOST (QUIZMASTER)</button>
+                <button id="btn-init-host" class="btn btn-green">LAUNCH AS HOST (NEW ROOM)</button>
+
+                <div style="border-top: 1px dashed var(--panel-border); margin-top: 10px; padding-top: 10px;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">RECLAIM DISCONNECTED ROOM</div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="input-reclaim-room-id" placeholder="ROOM ID" autocomplete="off" style="flex: 1; padding: 6px; font-size: 0.8rem; text-transform: uppercase;">
+                        <input type="text" id="input-reclaim-key" placeholder="RECLAIM KEY" autocomplete="off" style="width: 120px; padding: 6px; font-size: 0.8rem; text-transform: uppercase;">
+                    </div>
+                    <button id="btn-reclaim-host" class="btn" style="margin-top: 8px; width: 100%; background: rgba(255,170,0,0.15); border-color: var(--accent-amber); color: var(--accent-amber);">RECLAIM CONTROL ROOM</button>
+                </div>
             </div>
         </div>
 
@@ -56,11 +65,18 @@
             <div class="player-header" style="border: none; padding: 0; margin: 0;">
                 <div class="player-info">
                     <h2 class="text-glow-green" style="font-size: 1.3rem;">HOST DASHBOARD</h2>
-                    <!-- Room ID tag: clicking copy-tooltips copies room identifier to clipboard -->
-                    <span class="room-tag-copy" onclick="copyRoomId()">
-                        ROOM ID: <span id="host-room-id-val" style="margin-left: 6px; font-weight: bold; color: white;">----</span>
-                        <span id="copy-tooltip" class="copied-tooltip">COPIED!</span>
-                    </span>
+                    <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
+                        <!-- Room ID tag: clicking copy-tooltips copies room identifier to clipboard -->
+                        <span class="room-tag-copy" onclick="copyRoomId()" title="Click to copy Room ID">
+                            ROOM ID: <span id="host-room-id-val" style="margin-left: 6px; font-weight: bold; color: white;">----</span>
+                            <span id="copy-tooltip" class="copied-tooltip">COPIED!</span>
+                        </span>
+                        <!-- Reclaim Key tag: clicking copy-tooltips copies reclaim key to clipboard -->
+                        <span class="room-tag-copy" onclick="copyReclaimKey()" title="Click to copy Reclaim Key">
+                            RECLAIM KEY: <span id="host-reclaim-key-val" style="margin-left: 6px; font-weight: bold; color: var(--accent-amber);">----</span>
+                            <span id="copy-key-tooltip" class="copied-tooltip">COPIED!</span>
+                        </span>
+                    </div>
                 </div>
                 <div class="player-stats">
                     PEERS CONNECTED: <span id="host-peer-count" class="text-glow-green" style="font-weight: bold;">0</span>
@@ -91,6 +107,18 @@
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                             <span style="font-size: 0.85rem; color: var(--text-muted);">DURATION (SEC)</span>
                             <input type="number" id="host-timer-duration" value="10" min="3" max="60" style="width: 70px; padding: 4px 8px; text-align: center;">
+                        </div>
+
+                        <!-- Correct Answer Points Input -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 5px;">
+                            <span style="font-size: 0.85rem; color: var(--accent-green);">CORRECT (+PTS)</span>
+                            <input type="number" id="host-points-correct" value="10" style="width: 70px; padding: 4px 8px; text-align: center; color: var(--accent-green);" onchange="broadcastSettings()">
+                        </div>
+
+                        <!-- Incorrect Answer Penalty Input -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--accent-red);">INCORRECT (-PTS)</span>
+                            <input type="number" id="host-points-incorrect" value="5" style="width: 70px; padding: 4px 8px; text-align: center; color: var(--accent-red);" onchange="broadcastSettings()">
                         </div>
 
                         <!-- Double Down Mode Toggle -->

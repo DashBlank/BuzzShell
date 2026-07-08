@@ -164,7 +164,6 @@ let syncHistory = [];   // Array of { offset, rtt } to filter network jitter
 // ==========================================
 let roundStatus = 'idle'; // Game states: 'idle', 'active' (armed), 'hotseat', 'lockout'
 let currentRound = 1;     // Active game round counter
-let timerDuration = 10;   // Configured answer timer limit
 let timeRemaining = 0;    // Tracks active countdown seconds (supports fractions)
 let timerInterval = null; // Countdown setInterval reference
 let lastTickTime = 0;     // Used to compute delta time accurately regardless of interval lag
@@ -174,7 +173,9 @@ let settings = {
     timed: true,
     duration: 10,
     doubleDown: false,
-    streakMultipliers: false
+    streakMultipliers: false,
+    correctPoints: 10,
+    incorrectPenalty: 5
 };
 
 /**
@@ -226,21 +227,55 @@ function getOrCreateClientId() {
     return id;
 }
 
+let myHostReclaimKey = '';
+let hostReconnectInterval = null;
+
+/**
+ * Persists current Host room state to localStorage for disconnection recovery.
+ */
+function saveHostStateToStorage() {
+    if (!isHost) return;
+    if (activeRoomId) localStorage.setItem('quiz_buzzer_host_room_id', activeRoomId);
+    if (myHostReclaimKey) localStorage.setItem('quiz_buzzer_host_reclaim_key', myHostReclaimKey);
+    localStorage.setItem('quiz_buzzer_host_scores', JSON.stringify(scores));
+    localStorage.setItem('quiz_buzzer_host_settings', JSON.stringify(settings));
+    localStorage.setItem('quiz_buzzer_host_round', currentRound);
+}
+
 window.addEventListener('load', () => {
     getOrCreateClientId();
+
+    // Auto-fill reclaim input fields if previous host session exists in localStorage
+    const savedRoom = localStorage.getItem('quiz_buzzer_host_room_id');
+    const savedKey = localStorage.getItem('quiz_buzzer_host_reclaim_key');
+    if (savedRoom && savedKey) {
+        const rEl = document.getElementById('input-reclaim-room-id');
+        const kEl = document.getElementById('input-reclaim-key');
+        if (rEl) rEl.value = savedRoom;
+        if (kEl) kEl.value = savedKey;
+    }
 });
 
 // ==========================================
-// ROLE CREATION: HOST INITIALIZATION
+// ROLE CREATION: HOST INITIALIZATION & RECLAIM
 // ==========================================
 document.getElementById('btn-init-host').addEventListener('click', () => {
+    initHostRoom();
+});
+
+const reclaimBtn = document.getElementById('btn-reclaim-host');
+if (reclaimBtn) {
+    reclaimBtn.addEventListener('click', () => {
+        reclaimHostRoom();
+    });
+}
+
+function initHostRoom() {
     initAudio();
-    
-    // Secure Context check: WebRTC APIs are blocked in browsers over HTTP
     if (!window.RTCPeerConnection) {
-        alert("WebRTC is not supported in this browser or context. Note: WebRTC requires a secure context (HTTPS or localhost) to function.");
+        alert("WebRTC is not supported in this browser or context.");
         return;
-      }
+    }
 
     isHost = true;
     const btn = document.getElementById('btn-init-host');
@@ -248,33 +283,105 @@ document.getElementById('btn-init-host').addEventListener('click', () => {
     btn.innerText = 'REGISTERING ROOM...';
     btn.disabled = true;
 
-    // Generate room code (Peer ID) in uppercase to maintain matching input casing
     const targetRoomId = 'ROOM-' + Math.floor(10000 + Math.random() * 90000);
-    
+    myHostReclaimKey = 'SEC-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
     peer = new Peer(targetRoomId, PEER_CONFIG);
-    
+
     peer.on('open', (id) => {
         activeRoomId = id;
         document.getElementById('host-room-id-val').innerText = id;
+        document.getElementById('host-reclaim-key-val').innerText = myHostReclaimKey;
         switchScreen('host-screen');
-        logTerminal('INIT', `Room initiated with Peer ID [${id}]`);
+        logTerminal('INIT', `Room initiated [${id}] (Reclaim Key: ${myHostReclaimKey})`);
         
-        // Start high-frequency (100ms) player ping scan
+        saveHostStateToStorage();
         setInterval(hostHeartbeatLoop, 100);
     });
 
+    bindHostPeerEvents(btn, originalText);
+}
+
+function reclaimHostRoom() {
+    initAudio();
+    if (!window.RTCPeerConnection) {
+        alert("WebRTC is not supported in this browser or context.");
+        return;
+    }
+
+    const roomIdInput = document.getElementById('input-reclaim-room-id').value.trim().toUpperCase();
+    const reclaimKeyInput = document.getElementById('input-reclaim-key').value.trim().toUpperCase();
+
+    if (!roomIdInput || !reclaimKeyInput) {
+        alert("Please enter both Room ID and Reclaim Key to recover control of a room.");
+        return;
+    }
+
+    const btn = document.getElementById('btn-reclaim-host');
+    const originalText = btn.innerText;
+    btn.innerText = 'RECLAIMING ROOM...';
+    btn.disabled = true;
+
+    isHost = true;
+    activeRoomId = roomIdInput;
+    myHostReclaimKey = reclaimKeyInput;
+
+    // Restore saved host state from localStorage if available
+    const savedRoom = localStorage.getItem('quiz_buzzer_host_room_id');
+    const savedKey = localStorage.getItem('quiz_buzzer_host_reclaim_key');
+    const savedScores = localStorage.getItem('quiz_buzzer_host_scores');
+    const savedSettings = localStorage.getItem('quiz_buzzer_host_settings');
+    const savedRound = localStorage.getItem('quiz_buzzer_host_round');
+
+    if (savedRoom === roomIdInput && savedKey === reclaimKeyInput && savedScores) {
+        try {
+            scores = JSON.parse(savedScores);
+            // Mark all restored players as offline initially until they re-establish WebRTC connections
+            for (let cid in scores) {
+                scores[cid].status = 'offline';
+                scores[cid].lastPing = Date.now();
+            }
+        } catch (e) {
+            console.error('Error parsing saved scores:', e);
+            scores = {};
+        }
+        if (savedSettings) {
+            try { settings = JSON.parse(savedSettings); } catch(e){}
+        }
+        if (savedRound) currentRound = parseInt(savedRound) || 1;
+    }
+
+    roundStatus = 'idle'; // Engine set to STANDBY per user requirements
+
+    peer = new Peer(activeRoomId, PEER_CONFIG);
+
+    peer.on('open', (id) => {
+        document.getElementById('host-room-id-val').innerText = id;
+        document.getElementById('host-reclaim-key-val').innerText = myHostReclaimKey;
+        switchScreen('host-screen');
+        
+        logTerminal('RECOVER', `Reclaimed control room [${id}]. Engine set to STANDBY.`);
+        
+        saveHostStateToStorage();
+        updateHostDirectoryUI();
+        syncHostSettingsUI();
+
+        setInterval(hostHeartbeatLoop, 100);
+    });
+
+    bindHostPeerEvents(btn, originalText);
+}
+
+function bindHostPeerEvents(btn, originalText) {
     peer.on('connection', (conn) => {
-        // Register connection handlers BEFORE handshaking for safety
         conn.on('data', (data) => {
             handleHostIncomingData(conn, data);
         });
-        
         conn.on('close', () => {
             handleHostConnectionClose(conn);
         });
-        
         conn.on('error', (err) => {
-            logTerminal('CONN_ERR', `Connection error with a peer: ${err}`);
+            logTerminal('CONN_ERR', `Connection error with peer: ${err}`);
         });
     });
 
@@ -282,15 +389,14 @@ document.getElementById('btn-init-host').addEventListener('click', () => {
         btn.innerText = originalText;
         btn.disabled = false;
         if (err.type === 'unavailable-id') {
-            // Re-initiate host with a new room code if collision occurs on the public PeerJS server
-            logTerminal('RETRY', 'Room ID taken, retrying with new code...');
-            document.getElementById('btn-init-host').click();
+            logTerminal('RETRY', `Room ID [${activeRoomId}] is currently registered or in use.`);
+            alert(`Room ID [${activeRoomId}] is unavailable on broker server. If host tab was just closed, wait 5 seconds and click Reclaim again.`);
         } else {
             logTerminal('PEER_ERR', `Global peer error: ${err.message}`);
-            alert(`Failed to register room: ${err.message}`);
+            alert(`Failed to reclaim room: ${err.message}`);
         }
     });
-});
+}
 
 // ==========================================
 // ROLE CREATION: PLAYER INITIALIZATION
@@ -357,9 +463,7 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
         });
 
         conn.on('close', () => {
-            document.getElementById('player-status-text').innerText = 'OFFLINE (DISCONNECTED)';
-            document.getElementById('player-status-text').style.color = 'var(--accent-red)';
-            setBuzzerState('disabled');
+            handlePlayerHostDisconnect();
         });
 
         conn.on('error', (err) => {
@@ -586,6 +690,7 @@ function handleHostPlayerJoin(conn, data) {
         logTerminal('JOIN', `${incomingName} reconnected.`);
         broadcastRoster();
         broadcastState();
+        saveHostStateToStorage();
         return;
     }
 
@@ -620,6 +725,7 @@ function handleHostPlayerJoin(conn, data) {
     }
 
     broadcastState();
+    saveHostStateToStorage();
 }
 
 function handleHostPing(conn, data) {
@@ -813,6 +919,8 @@ function updateHostUI() {
     document.getElementById('host-toggle-doubledown').disabled = !settingsEnabled;
     document.getElementById('host-toggle-streaks').disabled = !settingsEnabled;
     document.getElementById('host-timer-duration').disabled = !settingsEnabled || !settings.timed;
+    if (document.getElementById('host-points-correct')) document.getElementById('host-points-correct').disabled = !settingsEnabled;
+    if (document.getElementById('host-points-incorrect')) document.getElementById('host-points-incorrect').disabled = !settingsEnabled;
 }
 
 // ==========================================
@@ -823,11 +931,6 @@ function hostStartRound() {
     buzzQueue = [];
     lockoutActive = false;
     if (lockoutTimer) clearTimeout(lockoutTimer);
-
-    // Auto-Reset all Double Down flags at round start
-    for (let cid in scores) {
-        scores[cid].doubleDownActive = false;
-    }
 
     roundStatus = 'active';
     
@@ -840,13 +943,14 @@ function hostStartRound() {
     updateTimerDisplay(timeRemaining);
     logTerminal('GAME', `Round ${currentRound} started. Buzzers armed.`);
     
-    broadcastRoster(); // Clear Double Down checkboxes on player screens
+    broadcastRoster();
     broadcast({
         type: 'ROUND_START',
         settings: settings,
         timeRemaining: timeRemaining
     });
     broadcastState();
+    saveHostStateToStorage();
 }
 
 function hostClearBuzzers() {
@@ -857,8 +961,15 @@ function hostClearBuzzers() {
     timeRemaining = 0;
     updateTimerDisplay(0);
 
+    // Reset Double Down flags for next round during Standby
+    for (let cid in scores) {
+        scores[cid].doubleDownActive = false;
+    }
+
     logTerminal('GAME', 'Buzzers cleared. Returning to standby.');
+    broadcastRoster();
     broadcastState();
+    saveHostStateToStorage();
 }
 
 function hostClearScoreboard() {
@@ -869,6 +980,7 @@ function hostClearScoreboard() {
     }
     logTerminal('ADMIN', 'Scoreboard cleared (names preserved).');
     broadcastRoster();
+    saveHostStateToStorage();
 }
 
 /**
@@ -908,6 +1020,7 @@ function hostKickPlayer(clientId) {
     logTerminal('KICK', `Kicked and banned player "${username}" from room.`);
     broadcastRoster();
     broadcastState();
+    saveHostStateToStorage();
 }
 
 // ==========================================
@@ -950,6 +1063,7 @@ function saveEditPlayer() {
     closeEditModal();
     broadcastRoster();
     broadcastState();
+    saveHostStateToStorage();
 }
 
 /**
@@ -968,13 +1082,17 @@ function hostMarkAnswer(isCorrect) {
 
     if (isCorrect) {
         // Award points
-        let points = 10;
+        let points = (settings.correctPoints !== undefined && !isNaN(settings.correctPoints)) ? settings.correctPoints : 10;
         if (profile.doubleDownActive) {
             points *= 2;
         }
         
         if (settings.streakMultipliers) {
-            profile.streak += 1;
+            if (profile.streak < 0) {
+                profile.streak = 1; // Reset cold streak on correct answer
+            } else {
+                profile.streak += 1;
+            }
             if (profile.streak >= 2) {
                 points *= profile.streak; // Apply linear streak multiplier
             }
@@ -1000,11 +1118,26 @@ function hostMarkAnswer(isCorrect) {
 
     } else {
         // Penalize points
-        let penalty = 5;
+        let penalty = (settings.incorrectPenalty !== undefined && !isNaN(settings.incorrectPenalty)) ? settings.incorrectPenalty : 5;
         if (profile.doubleDownActive) {
             penalty *= 2;
         }
-        profile.streak = 0; // Reset streak
+
+        if (settings.streakMultipliers) {
+            if (profile.streak > 0) {
+                profile.streak = -1; // Start cold streak on wrong answer
+            } else {
+                profile.streak -= 1; // Accumulate cold streak on consecutive wrong answers
+            }
+
+            const coldMagnitude = Math.abs(profile.streak);
+            if (coldMagnitude >= 2) {
+                penalty *= coldMagnitude; // Scale penalty for cold streaks of 2 or more (e.g. -2, -3)
+            }
+        } else {
+            profile.streak = 0;
+        }
+
         profile.score -= penalty; // Score is allowed to go negative
         profile.doubleDownActive = false;
 
@@ -1034,6 +1167,7 @@ function hostMarkAnswer(isCorrect) {
             logTerminal('GAME', 'No backup players in queue. Standby.');
             broadcastState();
         }
+        saveHostStateToStorage();
     }
 }
 
@@ -1154,10 +1288,31 @@ function updateTimerDisplay(sec) {
 function broadcastSettings() {
     settings.doubleDown = document.getElementById('host-toggle-doubledown').checked;
     settings.streakMultipliers = document.getElementById('host-toggle-streaks').checked;
+    
+    const cEl = document.getElementById('host-points-correct');
+    const iEl = document.getElementById('host-points-incorrect');
+    if (cEl) {
+        const val = parseInt(cEl.value);
+        settings.correctPoints = isNaN(val) ? 10 : val;
+    }
+    if (iEl) {
+        const val = parseInt(iEl.value);
+        settings.incorrectPenalty = isNaN(val) ? 5 : val;
+    }
+
     broadcast({
         type: 'SETTINGS_UPDATE',
         settings: settings
     });
+    saveHostStateToStorage();
+}
+
+function syncHostSettingsUI() {
+    if (document.getElementById('host-toggle-timed')) document.getElementById('host-toggle-timed').checked = settings.timed;
+    if (document.getElementById('host-toggle-doubledown')) document.getElementById('host-toggle-doubledown').checked = settings.doubleDown;
+    if (document.getElementById('host-toggle-streaks')) document.getElementById('host-toggle-streaks').checked = settings.streakMultipliers;
+    if (document.getElementById('host-points-correct')) document.getElementById('host-points-correct').value = settings.correctPoints !== undefined ? settings.correctPoints : 10;
+    if (document.getElementById('host-points-incorrect')) document.getElementById('host-points-incorrect').value = settings.incorrectPenalty !== undefined ? settings.incorrectPenalty : 5;
 }
 
 function toggleTimedConfig(val) {
@@ -1394,14 +1549,21 @@ function updatePlayerDirectoryUI(list) {
 function syncPlayerSettingsUI() {
     const doubleContainer = document.getElementById('player-doubledown-container');
     const doubleDisabledMsg = document.getElementById('player-doubledown-disabled-msg');
+    const ddToggle = document.getElementById('player-toggle-doubledown');
     
+    const canToggleDoubleDown = settings.doubleDown && (roundStatus === 'idle');
+
     if (settings.doubleDown) {
         doubleContainer.style.display = 'flex';
         doubleDisabledMsg.style.display = 'none';
     } else {
         doubleContainer.style.display = 'none';
         doubleDisabledMsg.style.display = 'block';
-        document.getElementById('player-toggle-doubledown').checked = false;
+        if (ddToggle) ddToggle.checked = false;
+    }
+
+    if (ddToggle) {
+        ddToggle.disabled = !canToggleDoubleDown;
     }
 }
 
@@ -1422,8 +1584,8 @@ function syncPlayerGameState(state) {
     const amFirstInQueue = hasQueued && state.queue[0].clientId === myClientId;
     const amInQueue = state.queue.some(item => item.clientId === myClientId);
 
-    // Disable Double Down input if the round has started or if the player already buzzed
-    const canToggleDoubleDown = settings.doubleDown && (roundStatus === 'active') && !amInQueue;
+    // Enable Double Down input ONLY during STANDBY (roundStatus === 'idle')
+    const canToggleDoubleDown = settings.doubleDown && (roundStatus === 'idle');
     const ddToggle = document.getElementById('player-toggle-doubledown');
     if (ddToggle) {
         ddToggle.disabled = !canToggleDoubleDown;
@@ -1535,6 +1697,8 @@ function playerToggleDoubleDown(checked) {
 // PERIODIC HEARTBEATS & CLIENT TIME SYNC
 // ==========================================
 function playerHeartbeatLoop() {
+    if (isHost || !myUsername) return;
+
     if (hostConnection && hostConnection.open) {
         hostConnection.send({
             type: 'PING',
@@ -1542,6 +1706,8 @@ function playerHeartbeatLoop() {
             timestamp: Date.now(),
             lastRtt: currentRtt
         });
+    } else {
+        handlePlayerHostDisconnect();
     }
 }
 
@@ -1580,4 +1746,109 @@ function cancelPlayerPasswordModal() {
         btn.disabled = false;
     }
     if (hostConnection) hostConnection.close();
+}
+
+/**
+ * Copies the Host Reclaim Key to clipboard with visual tooltip feedback.
+ */
+function copyReclaimKey() {
+    if (!myHostReclaimKey) return;
+    navigator.clipboard.writeText(myHostReclaimKey);
+    const tooltip = document.getElementById('copy-key-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'inline';
+        setTimeout(() => { tooltip.style.display = 'none'; }, 1500);
+    }
+}
+
+/**
+ * Triggers on player client when Host disconnects.
+ * Locks buzzers, updates status to "HOST DISCONNECTED (RECONNECTING...)",
+ * and initiates silent background reconnection loop without popups.
+ */
+function handlePlayerHostDisconnect() {
+    if (isHost || !myUsername) return;
+
+    setBuzzerState('disabled');
+    
+    const statusEl = document.getElementById('player-status-text');
+    if (statusEl) {
+        statusEl.innerText = 'HOST DISCONNECTED (RECONNECTING...)';
+        statusEl.style.color = 'var(--accent-amber)';
+    }
+
+    const hotseatBanner = document.getElementById('banner-player-hotseat');
+    if (hotseatBanner) hotseatBanner.classList.remove('show');
+
+    const warningBanner = document.getElementById('banner-player-warning');
+    if (warningBanner) warningBanner.classList.remove('show');
+
+    if (!hostReconnectInterval) {
+        hostReconnectInterval = setInterval(playerSilentHostReconnectLoop, 2000);
+    }
+}
+
+function playerSilentHostReconnectLoop() {
+    if (hostConnection && hostConnection.open) {
+        if (hostReconnectInterval) {
+            clearInterval(hostReconnectInterval);
+            hostReconnectInterval = null;
+        }
+        return;
+    }
+
+    const roomIdInput = document.getElementById('input-room-id').value.trim().toUpperCase();
+    if (!roomIdInput) return;
+
+    if (!peer || peer.destroyed) {
+        try { peer = new Peer(null, PEER_CONFIG); } catch(e){}
+    }
+
+    try {
+        const conn = peer.connect(roomIdInput, { reliable: true });
+        
+        const silentTimeout = setTimeout(() => {
+            try { conn.close(); } catch(e){}
+        }, 1800);
+
+        conn.on('open', () => {
+            clearTimeout(silentTimeout);
+            hostConnection = conn;
+
+            if (hostReconnectInterval) {
+                clearInterval(hostReconnectInterval);
+                hostReconnectInterval = null;
+            }
+
+            // Re-bind disconnect handlers so subsequent host disconnections are caught!
+            conn.on('close', () => {
+                handlePlayerHostDisconnect();
+            });
+            conn.on('error', () => {
+                handlePlayerHostDisconnect();
+            });
+
+            conn.send({
+                type: 'JOIN',
+                username: myUsername,
+                clientId: myClientId,
+                deviceId: myDeviceId,
+                password: null
+            });
+        });
+
+        conn.on('data', (data) => {
+            handlePlayerIncomingData(data);
+        });
+
+        conn.on('close', () => {
+            // Silence close events during silent reconnect polling
+        });
+
+        conn.on('error', () => {
+            // Silence error popups during silent reconnect polling per user requirement!
+        });
+    } catch(err) {
+        // Quietly swallow exceptions during silent reconnect polling
+    }
 }
