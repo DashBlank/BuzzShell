@@ -158,6 +158,7 @@ function playIncorrect() {
 let clockOffset = 0;   // NTP calculated time difference (Host Time - Player Time)
 let currentRtt = 0;     // Network Round Trip Time (RTT) in milliseconds
 let syncHistory = [];   // Array of { offset, rtt } to filter network jitter
+let lastPlayerRoster = null; // Caches latest roster for instant UI re-renders
 
 // ==========================================
 // GAME STATE MANAGEMENT
@@ -175,7 +176,9 @@ let settings = {
     doubleDown: false,
     streakMultipliers: false,
     correctPoints: 10,
-    incorrectPenalty: 5
+    incorrectPenalty: 5,
+    password: '',
+    hideScores: false
 };
 
 /**
@@ -327,30 +330,41 @@ function reclaimHostRoom() {
     myHostReclaimKey = reclaimKeyInput;
 
     // Restore saved host state from localStorage if available
-    const savedRoom = localStorage.getItem('quiz_buzzer_host_room_id');
-    const savedKey = localStorage.getItem('quiz_buzzer_host_reclaim_key');
+    const savedRoom = (localStorage.getItem('quiz_buzzer_host_room_id') || '').trim().toUpperCase();
+    const savedKey = (localStorage.getItem('quiz_buzzer_host_reclaim_key') || '').trim().toUpperCase();
     const savedScores = localStorage.getItem('quiz_buzzer_host_scores');
     const savedSettings = localStorage.getItem('quiz_buzzer_host_settings');
     const savedRound = localStorage.getItem('quiz_buzzer_host_round');
 
-    if (savedRoom === roomIdInput && savedKey === reclaimKeyInput && savedScores) {
-        try {
-            scores = JSON.parse(savedScores);
-            // Mark all restored players as offline initially until they re-establish WebRTC connections
-            for (let cid in scores) {
-                scores[cid].status = 'offline';
-                scores[cid].lastPing = Date.now();
-            }
-        } catch (e) {
-            console.error('Error parsing saved scores:', e);
-            scores = {};
-        }
+    const isSameDeviceSession = (savedRoom === roomIdInput) || (savedKey === reclaimKeyInput);
+
+    if (isSameDeviceSession || savedSettings) {
         if (savedSettings) {
-            try { settings = JSON.parse(savedSettings); } catch(e){}
+            try {
+                settings = JSON.parse(savedSettings);
+            } catch(e) {
+                console.error('Error parsing saved settings:', e);
+            }
         }
-        if (savedRound) currentRound = parseInt(savedRound) || 1;
+        if (savedScores) {
+            try {
+                scores = JSON.parse(savedScores);
+                // Mark all restored players as offline initially until they re-establish WebRTC connections
+                for (let cid in scores) {
+                    scores[cid].status = 'offline';
+                    scores[cid].lastPing = Date.now();
+                }
+            } catch (e) {
+                console.error('Error parsing saved scores:', e);
+                scores = {};
+            }
+        }
+        if (savedRound) {
+            currentRound = parseInt(savedRound) || 1;
+        }
     }
 
+    syncHostSettingsUI();
     roundStatus = 'idle'; // Engine set to STANDBY per user requirements
 
     peer = new Peer(activeRoomId, PEER_CONFIG);
@@ -613,7 +627,7 @@ function handleHostPlayerJoin(conn, data) {
     }
 
     // 0b. Check Room Password
-    const roomPassword = document.getElementById('host-room-password').value.trim();
+    const roomPassword = settings.password ? settings.password.trim() : '';
     if (roomPassword) {
         if (!data.password) {
             conn.send({
@@ -921,6 +935,7 @@ function updateHostUI() {
     document.getElementById('host-timer-duration').disabled = !settingsEnabled || !settings.timed;
     if (document.getElementById('host-points-correct')) document.getElementById('host-points-correct').disabled = !settingsEnabled;
     if (document.getElementById('host-points-incorrect')) document.getElementById('host-points-incorrect').disabled = !settingsEnabled;
+    if (document.getElementById('host-toggle-hidescores')) document.getElementById('host-toggle-hidescores').disabled = !settingsEnabled;
 }
 
 // ==========================================
@@ -1035,7 +1050,19 @@ function openEditModal(clientId) {
     activeEditingClientId = clientId;
     document.getElementById('modal-edit-username').innerText = profile.username;
     document.getElementById('modal-edit-score').value = profile.score;
-    document.getElementById('modal-edit-streak').value = profile.streak;
+
+    const streakInput = document.getElementById('modal-edit-streak');
+    const streakMsg = document.getElementById('modal-edit-streak-msg');
+
+    if (settings.streakMultipliers) {
+        streakInput.value = profile.streak;
+        streakInput.disabled = false;
+        if (streakMsg) streakMsg.style.display = 'none';
+    } else {
+        streakInput.value = 0;
+        streakInput.disabled = true;
+        if (streakMsg) streakMsg.style.display = 'inline';
+    }
 
     document.getElementById('modal-edit-player').style.display = 'flex';
 }
@@ -1053,7 +1080,11 @@ function saveEditPlayer() {
 
     const profile = scores[activeEditingClientId];
     const newScore = parseInt(document.getElementById('modal-edit-score').value) || 0;
-    const newStreak = parseInt(document.getElementById('modal-edit-streak').value) || 0;
+    
+    let newStreak = 0;
+    if (settings.streakMultipliers) {
+        newStreak = parseInt(document.getElementById('modal-edit-streak').value) || 0;
+    }
 
     profile.score = newScore;
     profile.streak = newStreak;
@@ -1286,11 +1317,22 @@ function updateTimerDisplay(sec) {
 }
 
 function broadcastSettings() {
-    settings.doubleDown = document.getElementById('host-toggle-doubledown').checked;
-    settings.streakMultipliers = document.getElementById('host-toggle-streaks').checked;
-    
+    const timedEl = document.getElementById('host-toggle-timed');
+    const durEl = document.getElementById('host-timer-duration');
+    const ddEl = document.getElementById('host-toggle-doubledown');
+    const streakEl = document.getElementById('host-toggle-streaks');
     const cEl = document.getElementById('host-points-correct');
     const iEl = document.getElementById('host-points-incorrect');
+    const passEl = document.getElementById('host-room-password');
+    const hideEl = document.getElementById('host-toggle-hidescores');
+
+    if (timedEl) settings.timed = timedEl.checked;
+    if (durEl) {
+        const dVal = parseInt(durEl.value);
+        settings.duration = isNaN(dVal) ? 10 : dVal;
+    }
+    if (ddEl) settings.doubleDown = ddEl.checked;
+    if (streakEl) settings.streakMultipliers = streakEl.checked;
     if (cEl) {
         const val = parseInt(cEl.value);
         settings.correctPoints = isNaN(val) ? 10 : val;
@@ -1299,6 +1341,8 @@ function broadcastSettings() {
         const val = parseInt(iEl.value);
         settings.incorrectPenalty = isNaN(val) ? 5 : val;
     }
+    if (passEl) settings.password = passEl.value.trim();
+    if (hideEl) settings.hideScores = hideEl.checked;
 
     broadcast({
         type: 'SETTINGS_UPDATE',
@@ -1308,17 +1352,31 @@ function broadcastSettings() {
 }
 
 function syncHostSettingsUI() {
-    if (document.getElementById('host-toggle-timed')) document.getElementById('host-toggle-timed').checked = settings.timed;
-    if (document.getElementById('host-toggle-doubledown')) document.getElementById('host-toggle-doubledown').checked = settings.doubleDown;
-    if (document.getElementById('host-toggle-streaks')) document.getElementById('host-toggle-streaks').checked = settings.streakMultipliers;
-    if (document.getElementById('host-points-correct')) document.getElementById('host-points-correct').value = settings.correctPoints !== undefined ? settings.correctPoints : 10;
-    if (document.getElementById('host-points-incorrect')) document.getElementById('host-points-incorrect').value = settings.incorrectPenalty !== undefined ? settings.incorrectPenalty : 5;
+    const timedEl = document.getElementById('host-toggle-timed');
+    const durEl = document.getElementById('host-timer-duration');
+    const ddEl = document.getElementById('host-toggle-doubledown');
+    const streakEl = document.getElementById('host-toggle-streaks');
+    const cEl = document.getElementById('host-points-correct');
+    const iEl = document.getElementById('host-points-incorrect');
+    const passEl = document.getElementById('host-room-password');
+    const hideEl = document.getElementById('host-toggle-hidescores');
+
+    if (timedEl) timedEl.checked = settings.timed;
+    if (durEl) {
+        durEl.value = (settings.duration !== undefined) ? settings.duration : 10;
+        durEl.disabled = !settings.timed;
+    }
+    if (ddEl) ddEl.checked = !!settings.doubleDown;
+    if (streakEl) streakEl.checked = !!settings.streakMultipliers;
+    if (cEl) cEl.value = (settings.correctPoints !== undefined) ? settings.correctPoints : 10;
+    if (iEl) iEl.value = (settings.incorrectPenalty !== undefined) ? settings.incorrectPenalty : 5;
+    if (passEl) passEl.value = settings.password || '';
+    if (hideEl) hideEl.checked = !!settings.hideScores;
 }
 
 function toggleTimedConfig(val) {
-    settings.timed = val;
     const input = document.getElementById('host-timer-duration');
-    input.disabled = !val; // Lock input duration field if untimed
+    if (input) input.disabled = !val;
     broadcastSettings();
 }
 
@@ -1455,6 +1513,7 @@ function handlePlayerIncomingData(data) {
     }
 
     if (data.type === 'ROSTER_UPDATE') {
+        lastPlayerRoster = data.roster;
         updatePlayerDirectoryUI(data.roster);
         return;
     }
@@ -1462,6 +1521,9 @@ function handlePlayerIncomingData(data) {
     if (data.type === 'SETTINGS_UPDATE') {
         settings = data.settings;
         syncPlayerSettingsUI();
+        if (lastPlayerRoster) {
+            updatePlayerDirectoryUI(lastPlayerRoster);
+        }
         return;
     }
 
@@ -1523,6 +1585,8 @@ function updatePlayerDirectoryUI(list) {
 
         const doubleText = p.doubleDownActive ? '⚡' : '';
 
+        const scoreVal = settings.hideScores ? '<span style="color: var(--accent-amber); font-weight:bold;">???</span>' : `<span style="font-weight:bold;">${p.score}</span>`;
+
         tr.innerHTML = `
             <td>
                 <span class="status-badge ${p.status === 'online' ? 'status-online' : 'status-offline'}">${p.status}</span>
@@ -1534,13 +1598,22 @@ function updatePlayerDirectoryUI(list) {
                     ${doubleText}
                 </div>
             </td>
-            <td><span style="font-weight:bold;">${p.score}</span></td>
+            <td>${scoreVal}</td>
         `;
         tbody.appendChild(tr);
 
         // Sync local HUD scores & force Double Down checkbox reset on round start
         if (p.clientId === myClientId) {
-            document.getElementById('player-my-score').innerText = p.score;
+            const scoreEl = document.getElementById('player-my-score');
+            if (scoreEl) {
+                if (settings.hideScores) {
+                    scoreEl.innerText = '???';
+                    scoreEl.style.color = 'var(--accent-amber)';
+                } else {
+                    scoreEl.innerText = p.score;
+                    scoreEl.style.color = 'var(--accent-green)';
+                }
+            }
             document.getElementById('player-toggle-doubledown').checked = p.doubleDownActive;
         }
     });
@@ -1550,6 +1623,7 @@ function syncPlayerSettingsUI() {
     const doubleContainer = document.getElementById('player-doubledown-container');
     const doubleDisabledMsg = document.getElementById('player-doubledown-disabled-msg');
     const ddToggle = document.getElementById('player-toggle-doubledown');
+    const scoreEl = document.getElementById('player-my-score');
     
     const canToggleDoubleDown = settings.doubleDown && (roundStatus === 'idle');
 
@@ -1564,6 +1638,11 @@ function syncPlayerSettingsUI() {
 
     if (ddToggle) {
         ddToggle.disabled = !canToggleDoubleDown;
+    }
+
+    if (scoreEl && settings.hideScores) {
+        scoreEl.innerText = '???';
+        scoreEl.style.color = 'var(--accent-amber)';
     }
 }
 

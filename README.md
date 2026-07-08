@@ -11,9 +11,10 @@ A high-performance, lightweight, and event-driven multiplayer quiz buzzer system
 * **⏱️ NTP Clocksync & Sub-Millisecond Delta Tracking:** Continual network RTT and clock offset ($\theta$) calculations stamp player buzz events at the millisecond layer. Resolves true first-place buzzes and displays exact millisecond deltas for backup queued players.
 * **🔑 Host Disconnect Recovery & Secret Reclaim Key:** Every room generates a unique **Host Reclaim Key** (`SEC-XXXXXX`). If the Host tab crashes, reloads, or loses Wi-Fi, the Host can reclaim control from the same tab or any device. Players automatically lock buzzers, show `"HOST DISCONNECTED (RECONNECTING...)"`, and silently re-establish P2P channels when the Host returns—without annoying alert popups or broken states across repeat disconnects!
 * **⚙️ Configurable Reward & Penalty Rules:** Host can dynamically configure base points for correct answers (`CORRECT (+PTS)`) and penalty deductions for wrong answers (`INCORRECT (-PTS)`). Inputs automatically lock during active rounds and auto-save for host recovery.
+* **🙈 Hide Scores / Suspense Mode:** Host can toggle score visibility (`HIDE SCORES (SUSPENSE)`) on or off. When enabled, player scores on the Player HUD and Lobby Directory are masked with glowing amber **`???`** for extra tension, while the Host retains full authoritative visibility on the Quizmaster Dashboard.
 * **🥾 Player Kick & Persistent Device Ban:** The Host can kick unwanted players directly from the scoreboard. Bans are enforced using persistent device identifiers (`localStorage`) and username registries, preventing kicked players from rejoining even if they reload or open new tabs on the same device.
 * **🔑 Optional Dynamic Room Password:** Host can set, change, or clear a Room Password on the fly. Players joining must provide the matching password via an interactive modal if enabled.
-* **✏️ Host Score & Streak Editing:** Host can manually adjust any player's score (positive/negative) and streak count via an inline modal to easily correct host evaluation mistakes without resetting the game.
+* **✏️ Host Score & Streak Editing:** Host can manually adjust any player's score (positive/negative) and streak count via an inline modal to easily correct host evaluation mistakes without resetting the game. (Streak editing automatically locks when Streak Multipliers are disabled).
 * **🛡️ 3-Second Lockout Window & Player Isolation:** The first buzz locks the hotseat, starts the answering countdown, and opens a 3-second backup buzz window. Idle players who miss the window receive an explicit `"LOCKED OUT"` HUD banner, keeping player alerts isolated from the Host dashboard.
 * **💥 Strategy Modifiers (Double Down):** Players can toggle Double Down before buzzing during **STANDBY** (`roundStatus === 'idle'`) to double both reward and penalty risks for the upcoming question. Modifiers automatically lock once buzzers are armed and auto-reset at round conclusion.
 * **🔥 / ❄️ Streak Multipliers & Cold Streaks:** Automatic tracking of consecutive correct answers with dynamic linear point multipliers (`x2`, `x3`, etc., marked by `🔥`). Cold/losing streaks ($\le -1$, marked by `❄️`) accumulate on consecutive wrong answers and scale penalty magnitude when Streak Multipliers are enabled.
@@ -30,10 +31,10 @@ The codebase is organized into modular files:
 
 ```
 quiz-buzzer-webrtc/
-├── quiz_buzzer.html   # Clean HTML5 markup, screen layouts (Role Entry, Host Dashboard, Player View, Edit Modal, Password Modal)
-├── quiz_buzzer.css    # Techno-Terminal / Cyberpunk HUD styling, glowing badges, animated banners, modal overlays
-├── quiz_buzzer.js     # Complete P2P engine logic, WebAudio synthesizer, NTP clocksync, state machine, host reclaim registry
-└── quiz_buzzer.md     # Documentation and quick start manual
+├── index.html   # Clean HTML5 markup, screen layouts (Role Entry, Host Dashboard, Player View, Edit Modal, Password Modal)
+├── style.css    # Techno-Terminal / Cyberpunk HUD styling, glowing badges, animated banners, modal overlays
+├── app.js       # Complete P2P engine logic, WebAudio synthesizer, NTP clocksync, state machine, host reclaim registry
+└── README.md    # Documentation and quick start manual
 ```
 
 ---
@@ -61,6 +62,7 @@ quiz-buzzer-webrtc/
 
 * **Timed / Untimed Rounds:** Host can toggle countdown timers on or off. Timer duration inputs automatically lock during active rounds.
 * **Correct & Incorrect Points:** Host can set custom base reward (e.g. `+10`, `+20`) and penalty (e.g. `-5`, `0`) points.
+* **Hide Scores (Suspense):** Host can mask player scores with `???` on all player screens for dramatic reveals.
 * **Room Password:** Optional host-configured password to restrict lobby entry.
 * **Double Down Mode:** Can be globally enabled/disabled by the Host. Players opt in during Standby.
 * **Streak Multipliers & Cold Streaks:** Can be toggled on/off to enable linear score scaling for winning streaks and penalty scaling for cold streaks.

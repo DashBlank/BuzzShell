@@ -106,7 +106,7 @@
                         <!-- Answering Countdown Duration -->
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                             <span style="font-size: 0.85rem; color: var(--text-muted);">DURATION (SEC)</span>
-                            <input type="number" id="host-timer-duration" value="10" min="3" max="60" style="width: 70px; padding: 4px 8px; text-align: center;">
+                            <input type="number" id="host-timer-duration" value="10" min="3" max="60" style="width: 70px; padding: 4px 8px; text-align: center;" onchange="broadcastSettings()">
                         </div>
 
                         <!-- Correct Answer Points Input -->
@@ -132,6 +132,13 @@
                         <label class="switch-container">
                             <span>STREAK MULTIPLIERS</span>
                             <input type="checkbox" id="host-toggle-streaks" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Hide Scores / Suspense Mode Toggle -->
+                        <label class="switch-container">
+                            <span>HIDE SCORES (SUSPENSE)</span>
+                            <input type="checkbox" id="host-toggle-hidescores" onchange="broadcastSettings()">
                             <div class="custom-switch"></div>
                         </label>
 
@@ -326,7 +333,10 @@
                     <input type="number" id="modal-edit-score" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal);">
                 </div>
                 <div>
-                    <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">STREAK (COUNT)</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-size: 0.8rem; color: var(--text-muted);">STREAK (COUNT)</label>
+                        <span id="modal-edit-streak-msg" style="font-size: 0.75rem; color: var(--accent-red); display: none;">LOCKED (STREAK MULTIPLIERS OFF)</span>
+                    </div>
                     <input type="number" id="modal-edit-streak" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-amber); font-family: var(--font-terminal);">
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
