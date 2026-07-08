@@ -193,13 +193,20 @@ let buzzQueue = [];
 let lockoutActive = false; // Indicates if the 3-second backup buzz window is open
 let lockoutTimer = null;   // Backup window setTimeout reference
 
+let myDeviceId = null;
+
+// Host Ban Registries
+let bannedClients = {};
+let bannedDevices = {};
+let bannedUsernames = {};
+
 // ==========================================
-// SESSION PERSISTENCE (sessionStorage)
+// SESSION PERSISTENCE (sessionStorage & localStorage)
 // ==========================================
 /**
- * Retrieves the client's ID or generates a new one.
- * Storing in sessionStorage isolates IDs across duplicate tabs, 
- * allowing developers to run concurrent local players in the same browser window.
+ * Retrieves the client's ID (per-tab) and device ID (per-browser instance).
+ * Storing clientId in sessionStorage isolates IDs across duplicate tabs.
+ * Storing deviceId in localStorage persists across tabs/sessions to enforce device bans.
  */
 function getOrCreateClientId() {
     let id = sessionStorage.getItem('quiz_buzzer_client_id');
@@ -208,6 +215,14 @@ function getOrCreateClientId() {
         sessionStorage.setItem('quiz_buzzer_client_id', id);
     }
     myClientId = id;
+
+    let devId = localStorage.getItem('quiz_buzzer_device_id');
+    if (!devId) {
+        devId = 'd-' + Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+        localStorage.setItem('quiz_buzzer_device_id', devId);
+    }
+    myDeviceId = devId;
+
     return id;
 }
 
@@ -328,11 +343,12 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
         conn.on('open', () => {
             clearTimeout(connectionTimeout); // Cancel connection timeout
             
-            // Send username & sessionStorage client ID
             conn.send({
                 type: 'JOIN',
                 username: myUsername,
-                clientId: myClientId
+                clientId: myClientId,
+                deviceId: myDeviceId,
+                password: null
             });
         });
 
@@ -474,13 +490,52 @@ function handleHostConnectionClose(conn) {
 
 /**
  * Processes incoming Player handshake request.
- * Enforces name uniqueness, handles re-connections, and splits duplicated tabs.
+ * Enforces name uniqueness for active players, handles re-connections (same or new client ID),
+ * and safely splits duplicated tabs sharing sessionStorage IDs.
  */
 function handleHostPlayerJoin(conn, data) {
     let incomingClientId = data.clientId;
-    const incomingName = data.username;
+    const incomingName = (data.username || 'PLAYER').trim().substring(0, 10);
+    const incomingDeviceId = data.deviceId;
 
-    // Check if the username is already registered in the directory
+    // 0a. Check if player, device, or username is banned from this room
+    if (bannedClients[incomingClientId] || (incomingDeviceId && bannedDevices[incomingDeviceId]) || bannedUsernames[incomingName.toLowerCase()]) {
+        conn.send({
+            type: 'JOIN_REJECT',
+            reason: 'You have been kicked and banned from this room.'
+        });
+        logTerminal('BAN_BLOCK', `Blocked join attempt from kicked player "${incomingName}".`);
+        return;
+    }
+
+    // 0b. Check Room Password
+    const roomPassword = document.getElementById('host-room-password').value.trim();
+    if (roomPassword) {
+        if (!data.password) {
+            conn.send({
+                type: 'PASSWORD_REQUIRED'
+            });
+            logTerminal('PROMPT', `Prompted "${incomingName}" for room password.`);
+            return;
+        } else if (data.password !== roomPassword) {
+            conn.send({
+                type: 'PASSWORD_INCORRECT'
+            });
+            logTerminal('REJECT', `Rejected join for "${incomingName}" (Incorrect password).`);
+            return;
+        }
+    }
+
+    // 1. Split duplicated tabs sharing a sessionStorage client ID under a DIFFERENT username
+    if (scores[incomingClientId]) {
+        const existingName = scores[incomingClientId].username;
+        if (existingName.toLowerCase() !== incomingName.toLowerCase()) {
+            incomingClientId = 'c-' + Math.random().toString(36).substring(2, 11);
+            logTerminal('CONFLICT', `Client ID conflict for "${incomingName}" (shared ID with "${existingName}"). Reassigned new ID: ${incomingClientId}`);
+        }
+    }
+
+    // 2. Check if the username is already registered in the directory
     let existingRecordClientId = null;
     for (let cid in scores) {
         if (scores[cid].username.toLowerCase() === incomingName.toLowerCase()) {
@@ -490,22 +545,37 @@ function handleHostPlayerJoin(conn, data) {
     }
 
     if (existingRecordClientId) {
-        // Name matches a known player, but client ID is different: REJECT join (Name taken)
-        if (existingRecordClientId !== incomingClientId) {
+        const existingRecord = scores[existingRecordClientId];
+        const oldConn = playerConnections[existingRecordClientId];
+        const isConnAlive = (existingRecord.status === 'online') && oldConn && oldConn.open && (Date.now() - existingRecord.lastPing < 5000);
+
+        if (isConnAlive) {
+            // Player is genuinely online and actively connected right now: REJECT duplicate join
             conn.send({
                 type: 'JOIN_REJECT',
-                reason: 'Username taken.'
+                reason: 'Username already active in game.'
             });
-            logTerminal('REJECT', `Rejected join from duplicate username "${incomingName}"`);
+            logTerminal('REJECT', `Rejected join attempt for active username "${incomingName}".`);
             return;
         }
-        
-        // Re-connection Recovery: name and client ID both match!
+
+        // Player is OFFLINE (or connection dead): RECONNECT & rebind profile if client ID changed!
+        if (existingRecordClientId !== incomingClientId) {
+            // Client ID changed (e.g., cleared sessionStorage, new tab, browser restart)
+            // Transfer profile record to the new Client ID
+            scores[incomingClientId] = existingRecord;
+            delete scores[existingRecordClientId];
+            if (playerConnections[existingRecordClientId]) {
+                delete playerConnections[existingRecordClientId];
+            }
+            logTerminal('REBIND', `Rebound profile for "${incomingName}" to new session ID [${incomingClientId}].`);
+        }
+
         playerConnections[incomingClientId] = conn;
         scores[incomingClientId].status = 'online';
         scores[incomingClientId].lastPing = Date.now();
         scores[incomingClientId].disconnectTime = null;
-        
+
         conn.send({
             type: 'JOIN_SUCCESS',
             settings: settings,
@@ -519,17 +589,7 @@ function handleHostPlayerJoin(conn, data) {
         return;
     }
 
-    // Split duplicated tabs sharing a sessionStorage client ID
-    if (scores[incomingClientId]) {
-        const existingName = scores[incomingClientId].username;
-        if (existingName.toLowerCase() !== incomingName.toLowerCase()) {
-            // Assign a new Client ID to the conflicting new player tab
-            incomingClientId = 'c-' + Math.random().toString(36).substring(2, 11);
-            logTerminal('CONFLICT', `Client ID conflict for "${incomingName}" (shared ID with "${existingName}"). Reassigned new ID: ${incomingClientId}`);
-        }
-    }
-
-    // Register player profile
+    // 3. Brand new registration
     playerConnections[incomingClientId] = conn;
     scores[incomingClientId] = {
         username: incomingName,
@@ -538,7 +598,8 @@ function handleHostPlayerJoin(conn, data) {
         status: 'online',
         lastPing: Date.now(),
         disconnectTime: null,
-        doubleDownActive: false
+        doubleDownActive: false,
+        deviceId: incomingDeviceId
     };
 
     conn.send({
@@ -550,14 +611,14 @@ function handleHostPlayerJoin(conn, data) {
 
     logTerminal('JOIN', `${incomingName} registered to room.`);
     broadcastRoster();
-    
+
     // Send late-joined notification if round is in progress
     if (roundStatus !== 'idle') {
         conn.send({
             type: 'LATE_JOIN_WARNING'
         });
     }
-    
+
     broadcastState();
 }
 
@@ -621,7 +682,9 @@ function updateHostDirectoryUI(list) {
 
         let streakText = '';
         if (p.streak >= 2) {
-            streakText = `<span class="streak-indicator">🔥${p.streak}</span>`;
+            streakText = `<span class="streak-indicator" style="color: var(--accent-amber);">🔥${p.streak}</span>`;
+        } else if (p.streak <= -1) {
+            streakText = `<span class="streak-indicator" style="color: #66ccff;">❄️${p.streak}</span>`;
         }
 
         const doubleText = p.doubleDownActive ? '⚡' : '';
@@ -630,9 +693,19 @@ function updateHostDirectoryUI(list) {
             <td>
                 <span class="status-badge ${p.status === 'online' ? 'status-online' : 'status-offline'}">${p.status}</span>
             </td>
-            <td>${escapeHTML(p.username)} ${streakText} ${doubleText}</td>
+            <td>
+                <div class="player-name-container">
+                    <span class="player-name-text" title="${escapeHTML(p.username)}">${escapeHTML(p.username)}</span>
+                    ${streakText}
+                    ${doubleText}
+                </div>
+            </td>
             <td><span style="font-weight:bold;">${p.score}</span></td>
             <td id="ping-val-${p.clientId}">--ms</td>
+            <td style="text-align: right; white-space: nowrap;">
+                <button class="btn-action-sm" title="Edit Score & Streak" onclick="openEditModal('${p.clientId}')">✏️</button>
+                <button class="btn-action-sm" title="Kick & Ban Player" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="hostKickPlayer('${p.clientId}')">❌</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -796,6 +869,87 @@ function hostClearScoreboard() {
     }
     logTerminal('ADMIN', 'Scoreboard cleared (names preserved).');
     broadcastRoster();
+}
+
+/**
+ * Host Kick & Ban player handler.
+ * Closes WebRTC data channel and adds Client ID, Device ID, and Username to ban lists.
+ */
+function hostKickPlayer(clientId) {
+    const profile = scores[clientId];
+    if (!profile) return;
+
+    if (!confirm(`Are you sure you want to kick and ban "${profile.username}" from this room?`)) return;
+
+    const username = profile.username;
+    const deviceId = profile.deviceId;
+
+    // Register ban records
+    bannedClients[clientId] = true;
+    if (deviceId) bannedDevices[deviceId] = true;
+    bannedUsernames[username.toLowerCase()] = true;
+
+    // Send kick message over connection then terminate
+    const conn = playerConnections[clientId];
+    if (conn && conn.open) {
+        conn.send({
+            type: 'KICKED',
+            reason: 'You were kicked by the Host.'
+        });
+        conn.close();
+    }
+
+    delete playerConnections[clientId];
+    delete scores[clientId];
+
+    // Remove from active buzz queue if present
+    buzzQueue = buzzQueue.filter(item => item.clientId !== clientId);
+
+    logTerminal('KICK', `Kicked and banned player "${username}" from room.`);
+    broadcastRoster();
+    broadcastState();
+}
+
+// ==========================================
+// HOST SCORE & STREAK EDIT MODAL HANDLERS
+// ==========================================
+let activeEditingClientId = null;
+
+function openEditModal(clientId) {
+    const profile = scores[clientId];
+    if (!profile) return;
+
+    activeEditingClientId = clientId;
+    document.getElementById('modal-edit-username').innerText = profile.username;
+    document.getElementById('modal-edit-score').value = profile.score;
+    document.getElementById('modal-edit-streak').value = profile.streak;
+
+    document.getElementById('modal-edit-player').style.display = 'flex';
+}
+
+function closeEditModal() {
+    activeEditingClientId = null;
+    document.getElementById('modal-edit-player').style.display = 'none';
+}
+
+function saveEditPlayer() {
+    if (!activeEditingClientId || !scores[activeEditingClientId]) {
+        closeEditModal();
+        return;
+    }
+
+    const profile = scores[activeEditingClientId];
+    const newScore = parseInt(document.getElementById('modal-edit-score').value) || 0;
+    const newStreak = parseInt(document.getElementById('modal-edit-streak').value) || 0;
+
+    profile.score = newScore;
+    profile.streak = newStreak;
+
+    logTerminal('ADMIN', `Manually adjusted profile for "${profile.username}": Score=${newScore}, Streak=${newStreak}`);
+
+    closeEditModal();
+    broadcastRoster();
+    broadcastState();
 }
 
 /**
@@ -1089,6 +1243,7 @@ function handlePlayerIncomingData(data) {
         myUsername = data.username;
         sessionStorage.setItem('quiz_buzzer_client_id', myClientId); // Persist ID
         
+        document.getElementById('modal-player-password').style.display = 'none';
         document.getElementById('player-hud-name').innerText = myUsername;
         document.getElementById('player-hud-room-id').innerText = hostConnection.peer;
         switchScreen('player-screen');
@@ -1102,13 +1257,44 @@ function handlePlayerIncomingData(data) {
         return;
     }
 
+    if (data.type === 'PASSWORD_REQUIRED' || data.type === 'PASSWORD_INCORRECT') {
+        const btn = document.getElementById('btn-init-player');
+        if (btn) {
+            btn.innerText = 'CONNECT PEER-TO-PEER';
+            btn.disabled = false;
+        }
+        const modal = document.getElementById('modal-player-password');
+        const errDiv = document.getElementById('modal-player-password-error');
+        const input = document.getElementById('modal-player-password-input');
+        if (modal) {
+            modal.style.display = 'flex';
+            if (errDiv) errDiv.style.display = (data.type === 'PASSWORD_INCORRECT') ? 'block' : 'none';
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+        }
+        return;
+    }
+
     if (data.type === 'JOIN_REJECT') {
+        document.getElementById('modal-player-password').style.display = 'none';
         alert(`Rejected: ${data.reason}`);
         const btn = document.getElementById('btn-init-player');
         if (btn) {
             btn.innerText = 'CONNECT PEER-TO-PEER';
             btn.disabled = false;
         }
+        if (hostConnection) hostConnection.close();
+        return;
+    }
+
+    if (data.type === 'KICKED') {
+        document.getElementById('modal-player-password').style.display = 'none';
+        setBuzzerState('disabled');
+        document.getElementById('player-status-text').innerText = 'KICKED FROM ROOM';
+        document.getElementById('player-status-text').style.color = 'var(--accent-red)';
+        showWarningBanner('YOU WERE KICKED BY THE QUIZMASTER');
         if (hostConnection) hostConnection.close();
         return;
     }
@@ -1175,7 +1361,9 @@ function updatePlayerDirectoryUI(list) {
 
         let streakText = '';
         if (p.streak >= 2) {
-            streakText = `<span class="streak-indicator">🔥${p.streak}</span>`;
+            streakText = `<span class="streak-indicator" style="color: var(--accent-amber);">🔥${p.streak}</span>`;
+        } else if (p.streak <= -1) {
+            streakText = `<span class="streak-indicator" style="color: #66ccff;">❄️${p.streak}</span>`;
         }
 
         const doubleText = p.doubleDownActive ? '⚡' : '';
@@ -1184,7 +1372,13 @@ function updatePlayerDirectoryUI(list) {
             <td>
                 <span class="status-badge ${p.status === 'online' ? 'status-online' : 'status-offline'}">${p.status}</span>
             </td>
-            <td>${escapeHTML(p.username)} ${streakText} ${doubleText}</td>
+            <td>
+                <div class="player-name-container">
+                    <span class="player-name-text" title="${escapeHTML(p.username)}">${escapeHTML(p.username)}</span>
+                    ${streakText}
+                    ${doubleText}
+                </div>
+            </td>
             <td><span style="font-weight:bold;">${p.score}</span></td>
         `;
         tbody.appendChild(tr);
@@ -1358,4 +1552,32 @@ function playerTimeSyncLoop() {
             clientTx: Date.now()
         });
     }
+}
+
+// ==========================================
+// PLAYER PASSWORD PROMPT MODAL HANDLERS
+// ==========================================
+function submitPlayerPasswordModal() {
+    const typedPassword = document.getElementById('modal-player-password-input').value.trim();
+    if (!typedPassword) return;
+
+    if (hostConnection && hostConnection.open) {
+        hostConnection.send({
+            type: 'JOIN',
+            username: myUsername,
+            clientId: myClientId,
+            deviceId: myDeviceId,
+            password: typedPassword
+        });
+    }
+}
+
+function cancelPlayerPasswordModal() {
+    document.getElementById('modal-player-password').style.display = 'none';
+    const btn = document.getElementById('btn-init-player');
+    if (btn) {
+        btn.innerText = 'CONNECT PEER-TO-PEER';
+        btn.disabled = false;
+    }
+    if (hostConnection) hostConnection.close();
 }

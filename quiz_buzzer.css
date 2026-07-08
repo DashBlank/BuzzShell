@@ -256,12 +256,12 @@
         /* 2. HOST PANEL */
         .host-grid {
             display: grid;
-            grid-template-columns: 320px 1fr 320px;
+            grid-template-columns: 440px 1fr 280px;
             gap: 20px;
             width: 100%;
         }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 1200px) {
             .host-grid {
                 grid-template-columns: 1fr;
             }
@@ -350,13 +350,32 @@
         .directory-table th {
             color: var(--text-muted);
             border-bottom: 1px solid var(--panel-border);
-            padding: 8px 4px;
+            padding: 8px 6px;
             text-transform: uppercase;
+            white-space: nowrap;
         }
 
         .directory-table td {
-            padding: 10px 4px;
+            padding: 10px 6px;
             border-bottom: 1px solid rgba(255,255,255,0.02);
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .player-name-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .player-name-text {
+            font-weight: bold;
+            max-width: 110px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: inline-block;
             vertical-align: middle;
         }
 
@@ -386,10 +405,10 @@
         }
 
         .streak-indicator {
-            color: var(--accent-amber);
             font-weight: bold;
-            margin-left: 4px;
-            text-shadow: 0 0 5px var(--accent-amber-glow);
+            margin-left: 2px;
+            display: inline-block;
+            white-space: nowrap;
         }
 
         /* Middle Column: Central Display */
@@ -725,4 +744,47 @@
             font-size: 0.7rem;
             margin-left: 8px;
             display: none;
+        }
+
+        /* Modal Overlay & Box */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-box {
+            width: 90%;
+            max-width: 380px;
+            padding: 20px;
+            background: rgba(18, 18, 28, 0.95);
+            border-color: var(--accent-amber);
+            box-shadow: 0 0 30px rgba(255, 179, 0, 0.2);
+        }
+        .btn-close-modal {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+        .btn-close-modal:hover {
+            color: var(--accent-red);
+        }
+        .btn-action-sm {
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 3px;
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+        }
+        .btn-action-sm:hover {
+            border-color: var(--accent-green);
         }

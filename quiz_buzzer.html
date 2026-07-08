@@ -38,7 +38,7 @@
         <div class="terminal-panel">
             <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-amber);">ENTER GAME LOBBY</h2>
             <div class="role-form">
-                <input type="text" id="input-player-name" placeholder="YOUR USERNAME" maxlength="15" autocomplete="off">
+                <input type="text" id="input-player-name" placeholder="YOUR USERNAME" maxlength="10" autocomplete="off">
                 <input type="text" id="input-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off">
                 <button id="btn-init-player" class="btn btn-amber">CONNECT PEER-TO-PEER</button>
             </div>
@@ -106,6 +106,12 @@
                             <input type="checkbox" id="host-toggle-streaks" onchange="broadcastSettings()">
                             <div class="custom-switch"></div>
                         </label>
+
+                        <!-- Room Password Configuration -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">ROOM PASSWORD</span>
+                            <input type="text" id="host-room-password" placeholder="OPTIONAL" autocomplete="off" style="width: 110px; padding: 4px 8px; font-family: var(--font-terminal); background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); color: var(--accent-green);" onchange="broadcastSettings()">
+                        </div>
                     </div>
                 </div>
 
@@ -122,6 +128,7 @@
                                     <th>Name</th>
                                     <th>Score</th>
                                     <th>Ping</th>
+                                    <th style="text-align: right;">Manage</th>
                                 </tr>
                             </thead>
                             <tbody id="host-directory-tbody">
@@ -270,6 +277,62 @@
 
         </div>
 
+    </div>
+
+    <!-- ==========================================
+         EDIT PLAYER MODAL (HOST ONLY)
+         ========================================== -->
+    <div id="modal-edit-player" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-amber);">EDIT PLAYER PROFILE</span>
+                <button class="btn-close-modal" onclick="closeEditModal()">✕</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">PLAYER:</span>
+                    <span id="modal-edit-username" style="font-weight: bold; color: white; margin-left: 8px;">--</span>
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">SCORE (POINTS)</label>
+                    <input type="number" id="modal-edit-score" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal);">
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">STREAK (COUNT)</label>
+                    <input type="number" id="modal-edit-streak" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-amber); font-family: var(--font-terminal);">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                    <button class="btn" onclick="closeEditModal()">CANCEL</button>
+                    <button class="btn btn-green" onclick="saveEditPlayer()">SAVE CHANGES</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PLAYER PASSWORD PROMPT MODAL
+         ========================================== -->
+    <div id="modal-player-password" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-amber);">ROOM PASSWORD REQUIRED</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    The Quizmaster has protected this room with a password. Enter password to join:
+                </div>
+                <div>
+                    <input type="password" id="modal-player-password-input" placeholder="ENTER PASSWORD" autocomplete="off" onkeyup="if(event.key==='Enter') submitPlayerPasswordModal()" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal);">
+                </div>
+                <div id="modal-player-password-error" style="font-size: 0.8rem; color: var(--accent-red); display: none;">
+                    Invalid password. Please try again.
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px;">
+                    <button class="btn" onclick="cancelPlayerPasswordModal()">CANCEL</button>
+                    <button class="btn btn-amber" onclick="submitPlayerPasswordModal()">JOIN ROOM</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Script Block containing Game Engine Logic -->
