@@ -26,11 +26,11 @@
 
         <div class="terminal-panel" style="display: flex; flex-direction: column; width: 100%;">
             <!-- Lobby Tabs Header Bar -->
-            <div style="display: flex; gap: 4px; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; margin-bottom: 15px; justify-content: space-between;">
-                <button id="btn-role-tab-host" class="btn btn-action-sm" onclick="switchRoleTab('host')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">HOST</button>
-                <button id="btn-role-tab-reclaim" class="btn btn-action-sm" onclick="switchRoleTab('reclaim')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">RECLAIM</button>
-                <button id="btn-role-tab-play" class="btn btn-action-sm tab-active" onclick="switchRoleTab('play')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">PLAY</button>
-                <button id="btn-role-tab-spectate" class="btn btn-action-sm" onclick="switchRoleTab('spectate')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">SPECTATE</button>
+            <div class="role-tabs-header">
+                <button id="btn-role-tab-host" class="btn btn-action-sm" onclick="switchRoleTab('host')">HOST</button>
+                <button id="btn-role-tab-reclaim" class="btn btn-action-sm" onclick="switchRoleTab('reclaim')">RECLAIM</button>
+                <button id="btn-role-tab-play" class="btn btn-action-sm tab-active" onclick="switchRoleTab('play')">PLAY</button>
+                <button id="btn-role-tab-spectate" class="btn btn-action-sm" onclick="switchRoleTab('spectate')">SPECTATE</button>
             </div>
 
             <!-- Tab Content 1: Host Room Creation -->
@@ -378,11 +378,11 @@
         </div>
 
         <!-- Player Split Grid Layout -->
-        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 15px; flex-grow: 1; min-height: 0;">
+        <div class="player-grid">
 
             <!-- Left panel: Big Buzzer control -->
-            <div class="terminal-panel" style="display: flex; flex-direction: column; justify-content: center; gap: 20px;">
-                <div class="buzzer-box">
+            <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
+                <div class="terminal-panel buzzer-box">
                     <button id="btn-player-buzz" class="buzzer-btn" disabled onclick="playerTriggerBuzz()">BUZZ</button>
                     <!-- Local Countdown timer (synchronized via host TIMER_SYNC packets) -->
                     <div id="player-timer-digits" class="timer-digits text-glow-green" style="font-size: 2.2rem; display:none;">10.00</div>
@@ -559,7 +559,7 @@
         </div>
 
         <!-- Central Display layout -->
-        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 15px; flex-grow: 1; min-height: 0; margin-top: 15px;">
+        <div class="spectator-grid">
             <!-- Left Panel: Large Standings & Timer -->
             <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
                 <!-- Large Timer Display -->

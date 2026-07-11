@@ -681,13 +681,16 @@
             align-items: center;
             justify-content: center;
             gap: 20px;
-            height: 280px;
+            min-height: 280px;
+            height: auto;
+            padding: 20px 10px;
             position: relative;
         }
 
         .buzzer-btn {
             width: 180px;
             height: 180px;
+            flex-shrink: 0;
             border-radius: 50%;
             border: 6px solid var(--panel-border);
             background: rgba(30, 30, 45, 0.6);
@@ -989,10 +992,156 @@
             }
         }
 
+        /* ==========================================
+           GRID & FLEX RESPONSIVE LAYOUT CLASSES
+           ========================================== */
+        .player-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 15px;
+            flex-grow: 1;
+            min-height: 0;
+        }
+
+        .spectator-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 15px;
+            flex-grow: 1;
+            min-height: 0;
+            margin-top: 15px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .role-tabs-header {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+            justify-content: space-between;
+        }
+        .role-tabs-header button {
+            flex: 1;
+            padding: 6px 4px;
+            font-size: 0.72rem;
+            font-weight: bold;
+        }
+
+        .player-modifiers {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        /* Responsive overrides for Tablet & Mobile screens */
+        @media (max-width: 1024px) {
+            .screen-container {
+                height: auto;
+                min-height: 100vh;
+                overflow: visible;
+                padding: 10px;
+            }
+
+            .host-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+                height: auto;
+            }
+
+            .player-grid,
+            .spectator-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
         @media (max-width: 600px) {
             #role-screen {
                 width: 95%;
                 height: auto;
                 padding: 20px 10px;
+            }
+
+            .terminal-panel {
+                padding: 12px 14px !important;
+            }
+
+            .hud-header {
+                padding-bottom: 8px !important;
+                margin-bottom: 10px !important;
+            }
+
+            .config-group {
+                gap: 8px !important;
+            }
+
+            .role-tabs-header {
+                gap: 4px;
+            }
+
+            .role-tabs-header button {
+                font-size: 0.65rem !important;
+                padding: 6px 2px !important;
+            }
+
+            .player-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .player-header .player-info div {
+                flex-wrap: wrap;
+                gap: 8px !important;
+            }
+
+            .player-header .player-stats {
+                align-self: flex-end;
+                font-size: 0.72rem;
+                margin-top: 4px;
+            }
+
+            /* Tighten HUD Header Container padding on mobile */
+            #host-screen > .terminal-panel:first-child,
+            #player-screen > .terminal-panel:first-child,
+            #spectator-screen > .terminal-panel:first-child {
+                padding: 10px 12px !important;
+            }
+
+            .buzzer-box {
+                min-height: 220px;
+                height: auto;
+                gap: 15px;
+                padding: 15px 10px;
+            }
+
+            .buzzer-btn {
+                width: 140px;
+                height: 140px;
+                flex-shrink: 0;
+                font-size: 1.4rem;
+                border-width: 4px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .host-actions {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .host-actions .btn-full {
+                grid-column: span 1;
             }
         }

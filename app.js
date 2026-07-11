@@ -320,11 +320,11 @@ function initHostRoom() {
     isHost = true;
     const btn = document.getElementById('btn-init-host');
     const originalText = btn.innerText;
-    btn.innerText = 'REGISTERING ROOM...';
+    btn.innerText = 'REGISTERING ROOM';
     btn.disabled = true;
 
-    const targetRoomId = 'ROOM-' + Math.floor(10000 + Math.random() * 90000);
-    myHostReclaimKey = 'SEC-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const targetRoomId = String(Math.floor(10000 + Math.random() * 90000));
+    myHostReclaimKey = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // 10-second signaling connection timeout
     let connectionTimeout = setTimeout(() => {
@@ -372,7 +372,7 @@ function reclaimHostRoom() {
 
     const btn = document.getElementById('btn-reclaim-host');
     const originalText = btn.innerText;
-    btn.innerText = 'RECLAIMING ROOM...';
+    btn.innerText = 'RECLAIMING ROOM';
     btn.disabled = true;
 
     isHost = true;
@@ -529,7 +529,7 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
 
     const btn = document.getElementById('btn-init-player');
     const originalText = btn.innerText;
-    btn.innerText = 'CONNECTING...';
+    btn.innerText = 'CONNECTING';
     btn.disabled = true;
 
     // Generate random transient Peer ID for player's signaling session
@@ -619,7 +619,7 @@ document.getElementById('btn-init-spectator').addEventListener('click', () => {
 
     const btn = document.getElementById('btn-init-spectator');
     const originalText = btn.innerText;
-    btn.innerText = 'CONNECTING AS SPECTATOR...';
+    btn.innerText = 'CONNECTING AS SPECTATOR';
     btn.disabled = true;
 
     peer = new Peer(null, getPeerOptions());
@@ -2707,7 +2707,7 @@ function copyReclaimKey() {
 
 /**
  * Triggers on player client when Host disconnects.
- * Locks buzzers, updates status to "HOST DISCONNECTED (RECONNECTING...)",
+ * Locks buzzers, updates status to "HOST DISCONNECTED (RECONNECTING)",
  * and initiates silent background reconnection loop without popups.
  */
 function handlePlayerHostDisconnect() {
@@ -2716,7 +2716,7 @@ function handlePlayerHostDisconnect() {
     if (isSpectator) {
         const stateDigits = document.getElementById('spectator-round-state');
         if (stateDigits) {
-            stateDigits.innerText = 'DISCONNECTED (RECONNECTING...)';
+            stateDigits.innerText = 'DISCONNECTED (RECONNECTING)';
             stateDigits.className = 'status-current text-glow-red';
         }
         if (!hostReconnectInterval) {
@@ -2729,7 +2729,7 @@ function handlePlayerHostDisconnect() {
 
     const statusEl = document.getElementById('player-status-text');
     if (statusEl) {
-        statusEl.innerText = 'HOST DISCONNECTED (RECONNECTING...)';
+        statusEl.innerText = 'HOST DISCONNECTED (RECONNECTING)';
         statusEl.style.color = 'var(--accent-amber)';
     }
 
@@ -3070,7 +3070,7 @@ function renderStatsModal(data) {
         html += `
             <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
                 <h3 style="color: var(--accent-cyan); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Team Achievements</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="stats-grid">
                     <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🏆 Powerhouse Team</div>
                         <div style="font-weight: bold; color: var(--accent-green); margin-top: 4px;">${escapeHTML(data.awards.team.powerhouse.team)}</div>
@@ -3111,7 +3111,7 @@ function renderStatsModal(data) {
     html += `
         <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
             <h3 style="color: var(--accent-amber); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Player Achievements</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="stats-grid">
                 <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
                     <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">⚡ Speed Demon</div>
                     <div style="font-weight: bold; color: var(--accent-green); margin-top: 4px;">${escapeHTML(ind.speedDemon.username)}</div>
