@@ -18,7 +18,7 @@
   </defs>
 
   <!-- Cyberpunk background card -->
-  <rect width="512" height="512" fill="#0c0c14"/>
+  <circle cx="256" cy="256" r="220" fill="#0c0c14"/>
 
   <!-- Outer highly detailed border -->
   <!-- Outer thin circle -->
