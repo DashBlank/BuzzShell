@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q-TERMINAL // P2P QUIZ BUZZER</title>
+
+    <!-- Google Fonts: JetBrains Mono (Terminal look) & Orbitron (Cyberpunk HUD look) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <!-- PeerJS CDN: Used only as the initial broker signaling channel for WebRTC direct connection -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <!-- Project Stylesheet link -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ==========================================
+         SCREEN 1: ROLE SELECTION / LOBBY ENTRY
+         ========================================== -->
+    <div id="role-screen" class="screen-container screen-active" style="max-width: 500px; justify-content: center; align-content: center; height: 100vh;">
+        <h1 class="role-title">Q-TERMINAL</h1>
+
+        <div class="terminal-panel" style="display: flex; flex-direction: column; width: 100%;">
+            <!-- Lobby Tabs Header Bar -->
+            <div style="display: flex; gap: 4px; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; margin-bottom: 15px; justify-content: space-between;">
+                <button id="btn-role-tab-host" class="btn btn-action-sm" onclick="switchRoleTab('host')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">HOST</button>
+                <button id="btn-role-tab-reclaim" class="btn btn-action-sm" onclick="switchRoleTab('reclaim')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">RECLAIM</button>
+                <button id="btn-role-tab-play" class="btn btn-action-sm tab-active" onclick="switchRoleTab('play')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">PLAY</button>
+                <button id="btn-role-tab-spectate" class="btn btn-action-sm" onclick="switchRoleTab('spectate')" style="margin: 0; padding: 4px 8px; font-size: 0.7rem; flex: 1;">SPECTATE</button>
+            </div>
+
+            <!-- Tab Content 1: Host Room Creation -->
+            <div id="role-tab-host" class="role-tab-content">
+                <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-green); text-transform: uppercase;">Launch Control Room</h2>
+                <div class="role-form">
+                    <button id="btn-init-host" class="btn btn-green" style="width: 100%;">LAUNCH AS HOST (NEW ROOM)</button>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; line-height: 1.3;">
+                        Initialize a new quiz room. You will act as the Quizmaster host, authoritatively managing settings, timers, scores, and evaluations.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Reclaim Host Room -->
+            <div id="role-tab-reclaim" class="role-tab-content">
+                <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-amber); text-transform: uppercase;">Reclaim Control Room</h2>
+                <div class="role-form">
+                    <input type="text" id="input-reclaim-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off" style="text-transform: uppercase;">
+                    <input type="text" id="input-reclaim-key" placeholder="RECLAIM KEY (SEC-XXXXXX)" autocomplete="off" style="text-transform: uppercase;">
+                    <button id="btn-reclaim-host" class="btn btn-amber" style="width: 100%; margin-top: 5px;">RECLAIM CONTROL ROOM</button>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; line-height: 1.3;">
+                        Reconnect to an existing active room if your connection dropped or the tab crashed. Enter the Room ID and Reclaim Key to resume control.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 3: Player Lobby Entry (Default Active) -->
+            <div id="role-tab-play" class="role-tab-content tab-content-active">
+                <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-amber); text-transform: uppercase;">Enter Game Lobby</h2>
+                <div class="role-form">
+                    <input type="text" id="input-player-name" placeholder="YOUR USERNAME" maxlength="10" autocomplete="off">
+                    <input type="text" id="input-player-team" placeholder="TEAM NAME (OPTIONAL)" maxlength="12" autocomplete="off">
+                    <input type="text" id="input-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off">
+
+                    <!-- Custom Terminal Color Selector -->
+                    <div style="margin: 10px 0; text-align: left;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;">Terminal Color Accent</div>
+                        <div class="color-picker-grid" style="display: flex; gap: 10px; justify-content: space-between;">
+                            <label class="color-option" style="--option-color: var(--accent-green);">
+                                <input type="radio" name="player-theme-color" value="green" checked style="display: none;">
+                                <span class="color-indicator"></span>
+                            </label>
+                            <label class="color-option" style="--option-color: var(--accent-amber);">
+                                <input type="radio" name="player-theme-color" value="amber" style="display: none;">
+                                <span class="color-indicator"></span>
+                            </label>
+                            <label class="color-option" style="--option-color: var(--accent-red);">
+                                <input type="radio" name="player-theme-color" value="red" style="display: none;">
+                                <span class="color-indicator"></span>
+                            </label>
+                            <label class="color-option" style="--option-color: var(--accent-cyan);">
+                                <input type="radio" name="player-theme-color" value="cyan" style="display: none;">
+                                <span class="color-indicator"></span>
+                            </label>
+                            <label class="color-option" style="--option-color: var(--accent-magenta);">
+                                <input type="radio" name="player-theme-color" value="magenta" style="display: none;">
+                                <span class="color-indicator"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <button id="btn-init-player" class="btn btn-amber" style="width: 100%;">CONNECT PEER-TO-PEER</button>
+                </div>
+            </div>
+
+            <!-- Tab Content 4: Spectator Access -->
+            <div id="role-tab-spectate" class="role-tab-content">
+                <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-cyan); text-transform: uppercase;">Spectator Hub Access</h2>
+                <div class="role-form">
+                    <input type="text" id="input-spectator-name" placeholder="YOUR SCREEN NAME (OPTIONAL)" maxlength="12" autocomplete="off">
+                    <input type="text" id="input-spectator-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off">
+                    <button id="btn-init-spectator" class="btn btn-cyan" style="width: 100%;">SPECTATE ROOM</button>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; line-height: 1.3;">
+                        Watch the standings, buzzer queue list, and timers in real-time. Non-interactive casting role optimized for TV/projector screens.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Signaling Configuration (Collapsible) -->
+            <div style="border-top: 1px dashed var(--panel-border); margin-top: 15px; padding-top: 12px; font-size: 0.75rem;">
+                <div id="btn-toggle-advanced-sig" onclick="toggleAdvancedSignaling()" style="color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: space-between; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <span>⚙️ Advanced Signaling Broker Settings</span>
+                    <span id="advanced-sig-arrow">▶</span>
+                </div>
+                <div id="advanced-sig-panel" style="display: none; margin-top: 10px; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="color: var(--text-muted); width: 80px;">Host:</span>
+                        <input type="text" id="cfg-sig-host" value="0.peerjs.com" style="flex: 1; padding: 4px 8px; font-size: 0.75rem; font-family: var(--font-terminal);">
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="color: var(--text-muted); width: 80px;">Port:</span>
+                        <input type="number" id="cfg-sig-port" value="443" style="width: 80px; padding: 4px 8px; font-size: 0.75rem; text-align: center; font-family: var(--font-terminal);">
+
+                        <label class="switch-container" style="flex: 1; justify-content: flex-end; gap: 8px; margin: 0; padding: 0;">
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">SECURE (WSS)</span>
+                            <input type="checkbox" id="cfg-sig-secure" checked>
+                            <div class="custom-switch" style="width: 32px; height: 16px; min-width: 32px;"></div>
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="color: var(--text-muted); width: 80px;">Path:</span>
+                        <input type="text" id="cfg-sig-path" value="/" style="flex: 1; padding: 4px 8px; font-size: 0.75rem; font-family: var(--font-terminal);">
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.68rem; line-height: 1.3; margin-top: 4px; text-align: left;">
+                        Note: Change to host <code>localhost</code>, port <code>9000</code>, secure <code>OFF (unchecked)</code>, path <code>/</code> if running a local signaling server (e.g. <code>peerjs --port 9000</code>).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         SCREEN 2: HOST (QUIZMASTER) DASHBOARD
+         ========================================== -->
+    <div id="host-screen" class="screen-container">
+
+        <!-- Host Header / HUD Bar -->
+        <div class="terminal-panel" style="padding: 15px 20px;">
+            <div class="player-header" style="border: none; padding: 0; margin: 0;">
+                <div class="player-info">
+                    <h2 class="text-glow-green" style="font-size: 1.3rem;">HOST DASHBOARD</h2>
+                    <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
+                        <!-- Room ID tag: clicking copy-tooltips copies room identifier to clipboard -->
+                        <span class="room-tag-copy" onclick="copyRoomId()" title="Click to copy Room ID">
+                            ROOM ID: <span id="host-room-id-val" style="margin-left: 6px; font-weight: bold; color: white;">----</span>
+                            <span id="copy-tooltip" class="copied-tooltip">COPIED!</span>
+                        </span>
+                        <!-- Reclaim Key tag: clicking copy-tooltips copies reclaim key to clipboard -->
+                        <span class="room-tag-copy" onclick="copyReclaimKey()" title="Click to copy Reclaim Key">
+                            RECLAIM KEY: <span id="host-reclaim-key-val" style="margin-left: 6px; font-weight: bold; color: var(--accent-amber);">----</span>
+                            <span id="copy-key-tooltip" class="copied-tooltip">COPIED!</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="player-stats">
+                    PEERS CONNECTED: <span id="host-peer-count" class="text-glow-green" style="font-weight: bold;">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Host Layout Grid -->
+        <div class="host-grid">
+
+            <!-- Column 1 (Left): Settings & Buzz Queue -->
+            <div style="display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0;">
+
+                <!-- Game Settings Panel -->
+                <div class="terminal-panel" style="flex-shrink: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Engine Rules</span>
+                    </div>
+                    <div class="config-group">
+                        <!-- Timed Rounds Toggle -->
+                        <label class="switch-container">
+                            <span>TIMED ROUNDS</span>
+                            <input type="checkbox" id="host-toggle-timed" checked onchange="toggleTimedConfig(this.checked)">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Answering Countdown Duration -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">DURATION (SEC)</span>
+                            <input type="number" id="host-timer-duration" value="10" min="3" max="60" style="width: 70px; padding: 4px 8px; text-align: center;" onchange="broadcastSettings()">
+                        </div>
+
+                        <!-- Correct Answer Points Input -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 5px;">
+                            <span style="font-size: 0.85rem; color: var(--accent-green);">CORRECT (+PTS)</span>
+                            <input type="number" id="host-points-correct" value="10" style="width: 70px; padding: 4px 8px; text-align: center; color: var(--accent-green);" onchange="broadcastSettings()">
+                        </div>
+
+                        <!-- Incorrect Answer Penalty Input -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--accent-red);">INCORRECT (-PTS)</span>
+                            <input type="number" id="host-points-incorrect" value="5" style="width: 70px; padding: 4px 8px; text-align: center; color: var(--accent-red);" onchange="broadcastSettings()">
+                        </div>
+
+                        <!-- Double Down Mode Toggle -->
+                        <label class="switch-container" style="margin-top: 10px;">
+                            <span>DOUBLE DOWN MODE</span>
+                            <input type="checkbox" id="host-toggle-doubledown" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Shield Mode Toggle -->
+                        <label class="switch-container">
+                            <span>ALLOW SHIELD MODE</span>
+                            <input type="checkbox" id="host-toggle-shield" onchange="broadcastSettings()">
+                            <div class="custom-switch switch-cyan"></div>
+                        </label>
+
+                        <!-- Streak Multipliers Toggle -->
+                        <label class="switch-container">
+                            <span>STREAK MULTIPLIERS</span>
+                            <input type="checkbox" id="host-toggle-streaks" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Hide Scores / Suspense Mode Toggle -->
+                        <label class="switch-container">
+                            <span>HIDE SCORES (SUSPENSE)</span>
+                            <input type="checkbox" id="host-toggle-hidescores" onchange="broadcastSettings()">
+                            <div class="custom-switch"></div>
+                        </label>
+
+                        <!-- Team Mode Toggle -->
+                        <label class="switch-container">
+                            <span>ALLOW TEAM MODE</span>
+                            <input type="checkbox" id="host-toggle-teammode" onchange="broadcastSettings()">
+                            <div class="custom-switch switch-cyan"></div>
+                        </label>
+
+                        <!-- Room Password Configuration -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">ROOM PASSWORD</span>
+                            <input type="text" id="host-room-password" placeholder="OPTIONAL" autocomplete="off" style="width: 110px; padding: 4px 8px; font-family: var(--font-terminal); background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border); color: var(--accent-green);" onchange="broadcastSettings()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buzz Queue stacked under settings -->
+                <div class="terminal-panel" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Buzz Queue</span>
+                        <span id="queue-lockout-indicator" class="status-badge" style="display:none;">BUZZ OPEN</span>
+                    </div>
+                    <div class="queue-list" id="host-queue-list">
+                        <!-- Dynamic incoming buzz list sorted in real-time -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Middle panel: Central Display -->
+            <div class="central-display">
+
+                <!-- Engine state display -->
+                <div class="terminal-panel status-box">
+                    <div class="status-label">Engine State</div>
+                    <div id="host-round-state" class="status-current text-glow-amber">STANDBY</div>
+                </div>
+
+                <!-- Digital timer display -->
+                <div class="terminal-panel timer-container">
+                    <div id="host-timer-digits" class="timer-digits text-glow-green">00.00</div>
+                </div>
+
+                <!-- Host round controls -->
+                <div class="terminal-panel host-actions">
+                    <button id="btn-start-round" class="btn btn-green btn-full" onclick="hostStartRound()">START ROUND</button>
+                    <button id="btn-clear-buzzers" class="btn" onclick="hostClearBuzzers()">CLEAR BUZZERS</button>
+                    <button id="btn-clear-scoreboard" class="btn btn-red" onclick="hostClearScoreboard()">CLEAR SCOREBOARD</button>
+                    <button id="btn-mark-correct" class="btn btn-green" disabled onclick="hostMarkAnswer(true)">CORRECT</button>
+                    <button id="btn-mark-incorrect" class="btn btn-red" disabled onclick="hostMarkAnswer(false)">INCORRECT</button>
+                    <button id="btn-show-stats" class="btn btn-amber btn-full" onclick="hostShowStats()">GENERATE GAME STATS</button>
+                </div>
+            </div>
+
+            <!-- Column 3 (Right): Scoreboard Directory -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
+                <div class="hud-header">
+                    <span class="hud-title">Standings</span>
+                    <div id="host-directory-tabs" style="display: none; gap: 6px;">
+                        <button id="tab-host-players" class="btn btn-action-sm tab-active" onclick="switchHostDirectoryTab('players')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">PLAYERS</button>
+                        <button id="tab-host-teams" class="btn btn-action-sm" onclick="switchHostDirectoryTab('teams')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">TEAMS</button>
+                    </div>
+                </div>
+                <div style="overflow-y: auto; flex-grow: 1; min-height: 0;">
+                    <!-- Players Table -->
+                    <table class="directory-table" id="host-players-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 20px;"></th>
+                                <th>Name</th>
+                                <th style="width: 45px; text-align: right;">Pts</th>
+                                <th style="width: 45px; text-align: center;">Ping</th>
+                                <th style="width: 70px; text-align: right;">Manage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="host-directory-tbody">
+                            <!-- Dynamic player rows filled by host incoming data channel loop -->
+                        </tbody>
+                    </table>
+
+                    <!-- Teams Table (Hidden by default) -->
+                    <table class="directory-table" id="host-teams-table" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team Name</th>
+                                <th style="text-align: right;">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="host-teams-tbody">
+                            <!-- Dynamic team rows generated authoritatively -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Spectators container -->
+                <div id="host-spectators-container" style="border-top: 1px dashed var(--panel-border); padding-top: 10px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); display: none;">
+                    SPECTATORS ONLOOKING: <span id="host-spectator-list" style="color: var(--accent-cyan); font-weight: bold;">NONE</span>
+                </div>
+            </div>
+
+            <!-- Bottom panel: Terminal Logs console -->
+            <div class="terminal-log" id="host-terminal-log">
+                <!-- Action entries logged dynamically -->
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         SCREEN 3: PLAYER SCREEN
+         ========================================== -->
+    <div id="player-screen" class="screen-container">
+
+        <!-- Player Header / Ping HUD Bar -->
+        <div class="terminal-panel" style="padding: 15px 20px;">
+            <div class="player-header" style="border: none; padding: 0; margin: 0;">
+                <div class="player-info">
+                    <h2 id="player-hud-name" class="text-glow-player" style="font-size: 1.3rem;">PLAYER_PEER</h2>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">
+                        ROOM ID: <span id="player-hud-room-id" style="color: white; font-weight: bold;">----</span>
+                    </span>
+                </div>
+                <!-- Network synchronization stats -->
+                <div class="player-stats">
+                    RTT: <span id="player-hud-rtt" style="font-weight: bold; color: var(--accent-green);">--ms</span>
+                    &nbsp;|&nbsp;
+                    OFFSET: <span id="player-hud-offset" style="font-weight: bold; color: var(--accent-amber);">--ms</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hotseat Attention Banner (Flashes on player screen only when active hotseat turns) -->
+        <div id="banner-player-hotseat" class="attention-banner">
+            &gt;&gt; WARNING: YOU ARE IN THE HOTSEAT! RESPOND NOW &lt;&lt;
+        </div>
+
+        <!-- Warning notices banner (For locked out players / late joined warning indicators) -->
+        <div id="banner-player-warning" class="warning-banner">
+            ROUND IN PROGRESS (LATE JOINED)
+        </div>
+
+        <!-- Player Split Grid Layout -->
+        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 15px; flex-grow: 1; min-height: 0;">
+
+            <!-- Left panel: Big Buzzer control -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column; justify-content: center; gap: 20px;">
+                <div class="buzzer-box">
+                    <button id="btn-player-buzz" class="buzzer-btn" disabled onclick="playerTriggerBuzz()">BUZZ</button>
+                    <!-- Local Countdown timer (synchronized via host TIMER_SYNC packets) -->
+                    <div id="player-timer-digits" class="timer-digits text-glow-green" style="font-size: 2.2rem; display:none;">10.00</div>
+                    <div id="player-status-text" style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); text-align: center; letter-spacing: 1px;">
+                        STANDBY
+                    </div>
+                </div>
+
+                <!-- Player score HUD & local double-down configurations -->
+                <div class="player-options-grid">
+                    <div class="terminal-panel" style="padding: 12px; background: rgba(10,10,15,0.4); text-align: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 5px;">MY SCORE</span>
+                        <span id="player-my-score" class="hud-value text-glow-player" style="font-size: 1.5rem;">0</span>
+                    </div>
+
+                    <div class="terminal-panel" style="padding: 12px; background: rgba(10,10,15,0.4); display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                        <!-- Double down checkbox switch -->
+                        <label id="player-doubledown-container" class="switch-container" style="width: 100%; display: none; justify-content: space-between; align-items: center;">
+                            <span style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted);">DOUBLE DOWN</span>
+                            <input type="checkbox" id="player-toggle-doubledown" onchange="playerToggleDoubleDown(this.checked)">
+                            <div class="custom-switch"></div>
+                        </label>
+                        <!-- Shield checkbox switch -->
+                        <label id="player-shield-container" class="switch-container" style="width: 100%; display: none; justify-content: space-between; align-items: center;">
+                            <span style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted);">SHIELD ACTIVE</span>
+                            <input type="checkbox" id="player-toggle-shield" onchange="playerToggleShield(this.checked)">
+                            <div class="custom-switch switch-cyan"></div>
+                        </label>
+                        <!-- Lock warning when both modifiers are disabled in room rules -->
+                        <div id="player-modifiers-disabled-msg" style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; text-align: center;">
+                            MODIFIERS LOCKED
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel: Scoreboard Directory & Buzz Queue stacked -->
+            <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
+                <!-- Lobby Directory -->
+                <div class="terminal-panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Standings</span>
+                        <div id="player-directory-tabs" style="display: none; gap: 6px;">
+                            <button id="tab-player-players" class="btn btn-action-sm tab-active" onclick="switchPlayerDirectoryTab('players')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">PLAYERS</button>
+                            <button id="tab-player-teams" class="btn btn-action-sm" onclick="switchPlayerDirectoryTab('teams')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">TEAMS</button>
+                        </div>
+                    </div>
+                    <div style="flex-grow: 1; overflow-y: auto;">
+                        <!-- Players Table -->
+                        <table class="directory-table" id="player-players-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Name</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="player-directory-tbody">
+                                <!-- Dynamic lobby rows updated via Host broadcast -->
+                            </tbody>
+                        </table>
+
+                        <!-- Teams Table (Hidden by default) -->
+                        <table class="directory-table" id="player-teams-table" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Team Name</th>
+                                    <th style="text-align: right;">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="player-teams-tbody">
+                                <!-- Dynamic team standings -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Spectators container -->
+                    <div id="player-spectators-container" style="border-top: 1px dashed var(--panel-border); padding-top: 10px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); display: none;">
+                        SPECTATORS ONLOOKING: <span id="player-spectator-list" style="color: var(--accent-cyan); font-weight: bold;">NONE</span>
+                    </div>
+                </div>
+
+                <!-- Player Buzz Queue -->
+                <div class="terminal-panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Buzz Queue</span>
+                    </div>
+                    <div class="queue-list" id="player-queue-list" style="flex-grow: 1; overflow-y: auto;">
+                        <!-- Dynamic incoming buzz list sorted in real-time -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+         EDIT PLAYER MODAL (HOST ONLY)
+         ========================================== -->
+    <div id="modal-edit-player" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-amber);">EDIT PLAYER PROFILE</span>
+                <button class="btn-close-modal" onclick="closeEditModal()">✕</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">PLAYER:</span>
+                    <span id="modal-edit-username" style="font-weight: bold; color: white; margin-left: 8px;">--</span>
+                </div>
+                <div>
+                    <label for="modal-edit-score" style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 5px;">SCORE (POINTS)</label>
+                    <input type="number" id="modal-edit-score" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal);">
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label for="modal-edit-streak" style="font-size: 0.8rem; color: var(--text-muted);">STREAK (COUNT)</label>
+                        <span id="modal-edit-streak-msg" style="font-size: 0.75rem; color: var(--accent-red); display: none;">LOCKED (STREAK MULTIPLIERS OFF)</span>
+                    </div>
+                    <input type="number" id="modal-edit-streak" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-amber); font-family: var(--font-terminal);">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                    <button class="btn" onclick="closeEditModal()">CANCEL</button>
+                    <button class="btn btn-green" onclick="saveEditPlayer()">SAVE CHANGES</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PLAYER PASSWORD PROMPT MODAL
+         ========================================== -->
+    <div id="modal-player-password" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-amber);">ROOM PASSWORD REQUIRED</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    The Quizmaster has protected this room with a password. Enter password to join:
+                </div>
+                <div>
+                    <input type="password" id="modal-player-password-input" placeholder="ENTER PASSWORD" autocomplete="off" onkeyup="if(event.key==='Enter') submitPlayerPasswordModal()" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal);">
+                </div>
+                <div id="modal-player-password-error" style="font-size: 0.8rem; color: var(--accent-red); display: none;">
+                    Invalid password. Please try again.
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px;">
+                    <button class="btn" onclick="cancelPlayerPasswordModal()">CANCEL</button>
+                    <button class="btn btn-amber" onclick="submitPlayerPasswordModal()">JOIN ROOM</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 4: SPECTATOR SCREEN
+         ========================================== -->
+    <div id="spectator-screen" class="screen-container">
+        <!-- Spectator Header -->
+        <div class="terminal-panel" style="padding: 15px 20px;">
+            <div class="player-header" style="border: none; padding: 0; margin: 0;">
+                <div class="player-info">
+                    <h2 class="text-glow-player" style="font-size: 1.3rem;">SPECTATOR HUB</h2>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">
+                        ROOM ID: <span id="spectator-hud-room-id" style="color: white; font-weight: bold;">----</span>
+                    </span>
+                </div>
+                <div class="player-stats" style="color: var(--accent-cyan);">
+                    SPECTATOR HUB ACTIVE
+                </div>
+            </div>
+        </div>
+
+        <!-- Central Display layout -->
+        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 15px; flex-grow: 1; min-height: 0; margin-top: 15px;">
+            <!-- Left Panel: Large Standings & Timer -->
+            <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
+                <!-- Large Timer Display -->
+                <div class="terminal-panel" style="text-align: center; padding: 25px;">
+                    <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; letter-spacing: 1px;">ROUND STATUS</div>
+                    <div id="spectator-round-state" class="status-current text-glow-amber" style="font-size: 1.5rem; margin-bottom: 15px;">STANDBY</div>
+
+                    <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Time Remaining</div>
+                    <div id="spectator-timer-digits" class="timer-digits text-glow-green" style="font-size: 3.5rem; font-family: var(--font-display);">00.00</div>
+                </div>
+
+                <!-- Leaderboard Standing Directory -->
+                <div class="terminal-panel" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Standings</span>
+                        <div id="spectator-directory-tabs" style="display: none; gap: 6px;">
+                            <button id="tab-spectator-players" class="btn btn-action-sm tab-active" onclick="switchSpectatorDirectoryTab('players')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">PLAYERS</button>
+                            <button id="tab-spectator-teams" class="btn btn-action-sm" onclick="switchSpectatorDirectoryTab('teams')" style="margin: 0; padding: 2px 8px; font-size: 0.68rem;">TEAMS</button>
+                        </div>
+                    </div>
+                    <div style="flex-grow: 1; overflow-y: auto;">
+                        <!-- Players Table -->
+                        <table class="directory-table" id="spectator-players-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Player Name</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spectator-directory-tbody">
+                                <!-- Synced roster standings -->
+                            </tbody>
+                        </table>
+
+                        <!-- Teams Table (Hidden by default) -->
+                        <table class="directory-table" id="spectator-teams-table" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Team Name</th>
+                                    <th style="text-align: right;">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spectator-teams-tbody">
+                                <!-- Synced team standings -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Spectators container -->
+                    <div id="spectator-spectators-container" style="border-top: 1px dashed var(--panel-border); padding-top: 10px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); display: none;">
+                        SPECTATORS ONLOOKING: <span id="spectator-spectator-list" style="color: var(--accent-cyan); font-weight: bold;">NONE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Active Buzz Queue -->
+            <div class="terminal-panel" style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
+                <div class="hud-header">
+                    <span class="hud-title">ACTIVE BUZZ QUEUE</span>
+                </div>
+                <div class="queue-list" id="spectator-queue-list" style="flex-grow: 1; overflow-y: auto;">
+                    <!-- Dynamic incoming buzz list -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         GAME STATS & AWARDS MODAL (SHARED)
+         ========================================== -->
+    <div id="modal-game-stats" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box" style="max-width: 600px; width: 90%;">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-amber);">🏆 Q-TERMINAL SESSION STATS</span>
+                <button class="btn-close-modal" onclick="closeStatsModal()">✕</button>
+            </div>
+            <div id="stats-modal-content" style="display: flex; flex-direction: column; gap: 20px; max-height: 70vh; overflow-y: auto; font-size: 0.9rem;">
+                <!-- Dynamic stats and awards content -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                <button class="btn btn-amber" onclick="closeStatsModal()">DISMISS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Block containing Game Engine Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
