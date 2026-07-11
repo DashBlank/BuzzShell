@@ -1,4 +1,4 @@
-# ⏱️ Real-Time WebRTC Quiz Buzzer Engine (P2P Edition)
+# ⏱️ BuzzShell: Real-Time WebRTC Quiz Buzzer Engine (P2P Edition)
 
 A high-performance, lightweight, and event-driven multiplayer quiz buzzer system designed for competitive trivia games. Built with vanilla JavaScript, HTML5, and CSS3, it leverages **WebRTC DataChannels over PeerJS** with **NTP-style Clocksync** to provide sub-millisecond, near-zero latency state synchronization across all connected clients without needing a dedicated backend server.
 
