@@ -3,31 +3,31 @@
             --panel-bg: rgba(18, 18, 26, 0.75);
             --panel-border: #1a1a26;
             --panel-border-glow: rgba(0, 255, 102, 0.15);
-
+            
             --accent-green: #00ff66;
             --accent-green-dim: rgba(0, 255, 102, 0.08);
             --accent-green-glow: rgba(0, 255, 102, 0.35);
-
+            
             --accent-amber: #ffb300;
             --accent-amber-dim: rgba(255, 179, 0, 0.08);
             --accent-amber-glow: rgba(255, 179, 0, 0.25);
-
+            
             --accent-red: #ff3333;
             --accent-red-dim: rgba(255, 51, 51, 0.08);
             --accent-red-glow: rgba(255, 51, 51, 0.25);
-
+            
             --accent-cyan: #00f0ff;
             --accent-cyan-dim: rgba(0, 240, 255, 0.08);
             --accent-cyan-glow: rgba(0, 240, 255, 0.35);
-
+            
             --accent-magenta: #ff00f0;
             --accent-magenta-dim: rgba(255, 0, 240, 0.08);
             --accent-magenta-glow: rgba(255, 0, 240, 0.35);
-
+            
             --text-primary: #e2e2ec;
             --text-muted: #62627a;
             --text-dark: #050508;
-
+            
             --font-terminal: 'JetBrains Mono', monospace;
             --font-display: 'Orbitron', sans-serif;
         }
@@ -46,7 +46,7 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            background-image:
+            background-image: 
                 radial-gradient(circle at 50% 50%, rgba(20, 20, 35, 0.4) 0%, transparent 80%),
                 linear-gradient(rgba(18, 18, 28, 0.3) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(18, 18, 28, 0.3) 1px, transparent 1px);
@@ -1057,10 +1057,23 @@
                 height: auto;
             }
 
-            .player-grid,
-            .spectator-grid {
+            .player-grid {
                 grid-template-columns: 1fr;
                 height: auto;
+            }
+
+            .spectator-grid {
+                display: flex !important;
+                flex-direction: column;
+                height: auto;
+            }
+
+            .spectator-queue-panel {
+                order: 1;
+            }
+
+            .spectator-standings-panel {
+                order: 2;
             }
         }
 

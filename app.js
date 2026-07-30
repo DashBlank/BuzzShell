@@ -1,7 +1,7 @@
 /**
  * Q-Terminal Quiz Buzzer Game Engine
  * Authoritative WebRTC Edition (via PeerJS)
- *
+ * 
  * Features:
  * - Peer-to-Peer direct connection (signaling bypassed after handshake).
  * - NTP-style clocksync algorithm for sub-millisecond buzzer order sorting.
@@ -26,16 +26,16 @@ let activeDirectoryTab = 'players'; // Directory view state ('players' | 'teams'
  * - Host role: maps player ClientId -> active PeerJS DataConnection
  * - Player role: holds the single connection to the Host
  */
-let playerConnections = {};
+let playerConnections = {}; 
 let spectatorConnections = {}; // Maps spectator ClientId -> active PeerJS DataConnection
 let spectators = {};          // Spectator metadata profile registry (holds display names)
-let hostConnection = null;
-let isSpectator = false;      // True if this tab is spectating the lobby (read-only TV dashboard role)
+let hostConnection = null; 
+let isSpectator = false;      // True if this tab is spectating the lobby (read-only TV dashboard role) 
 
 /**
  * PeerJS ICE Server Configuration (ICE = Interactive Connectivity Establishment)
  * - Includes a standard public Google STUN server for normal NAT mappings.
- * - Includes Metered.ca public TURN servers to act as relays when players are behind strict
+ * - Includes Metered.ca public TURN servers to act as relays when players are behind strict 
  *   Symmetric NATs (common in cellular networks, colleges, or corporate environments).
  */
 function getPeerOptions() {
@@ -74,7 +74,7 @@ function getPeerOptions() {
         debug: 1,
         config: baseConfig
     };
-}
+} 
 
 // ==========================================
 // BROWSER-SYNTHESIZED AUDIO MODULE
@@ -97,14 +97,14 @@ function playBuzzerHit() {
     initAudio(); if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
+    
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(140, audioCtx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(70, audioCtx.currentTime + 0.35); // Fast sweep down
-
+    
     gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
     gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.35); // Fade out
-
+    
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.start(); osc.stop(audioCtx.currentTime + 0.35);
 }
@@ -117,13 +117,13 @@ function playAnsweringTick() {
     initAudio(); if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
+    
     osc.type = 'sine';
     osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
-
+    
     gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
     gain.gain.linearRampToValueAtTime(0.005, audioCtx.currentTime + 0.04); // Quick blip
-
+    
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.start(); osc.stop(audioCtx.currentTime + 0.04);
 }
@@ -136,7 +136,7 @@ function playCorrect() {
     initAudio(); if (!audioCtx) return;
     const now = audioCtx.currentTime;
     const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5 frequencies
-
+    
     notes.forEach((freq, i) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -158,14 +158,14 @@ function playIncorrect() {
     const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
+    
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(280, now);
     osc.frequency.linearRampToValueAtTime(75, now + 0.45); // Aggressive drop
-
+    
     gain.gain.setValueAtTime(0.18, now);
     gain.gain.linearRampToValueAtTime(0.005, now + 0.45);
-
+    
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.start(now); osc.stop(now + 0.45);
 }
@@ -205,21 +205,21 @@ let settings = {
 
 /**
  * Scoreboard & Player profiles (Host authoritatively holds this)
- * Key: clientId -> Value: {
- *   username: string,
- *   score: number,
- *   streak: number (consecutive correct/incorrect correct answers count),
- *   status: string ('online' | 'offline'),
- *   lastPing: timestamp (milliseconds),
- *   disconnectTime: timestamp or null,
- *   doubleDownActive: boolean,
- *   shieldActive: boolean,
- *   shieldCooldown: number (cooldown rounds remaining),
+ * Key: clientId -> Value: { 
+ *   username: string, 
+ *   score: number, 
+ *   streak: number (consecutive correct/incorrect correct answers count), 
+ *   status: string ('online' | 'offline'), 
+ *   lastPing: timestamp (milliseconds), 
+ *   disconnectTime: timestamp or null, 
+ *   doubleDownActive: boolean, 
+ *   shieldActive: boolean, 
+ *   shieldCooldown: number (cooldown rounds remaining), 
  *   color: string (selected color accent theme name),
  *   stats: { correctCount, incorrectCount, maxStreak, maxColdStreak, doubleDownCount, buzzReactionTimes[], backupDeltas[] }
  * }
  */
-let scores = {};
+let scores = {}; 
 
 /**
  * Buzz Queue (Host authoritative list)
@@ -281,6 +281,13 @@ function saveHostStateToStorage() {
 window.addEventListener('load', () => {
     getOrCreateClientId();
 
+    // Register PWA Service Worker for offline asset caching
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js")
+            .then((reg) => console.log("Service Worker registered. Scope:", reg.scope))
+            .catch((err) => console.warn("Service Worker registration failed:", err));
+    }
+
     // Auto-fill reclaim input fields if previous host session exists in localStorage
     const savedRoom = localStorage.getItem('quiz_buzzer_host_room_id');
     const savedKey = localStorage.getItem('quiz_buzzer_host_reclaim_key');
@@ -320,7 +327,7 @@ function initHostRoom() {
     isHost = true;
     const btn = document.getElementById('btn-init-host');
     const originalText = btn.innerText;
-    btn.innerText = 'REGISTERING ROOM';
+    btn.innerText = 'REGISTERING ROOM...';
     btn.disabled = true;
 
     const targetRoomId = String(Math.floor(10000 + Math.random() * 90000));
@@ -343,7 +350,7 @@ function initHostRoom() {
         document.getElementById('host-reclaim-key-val').innerText = myHostReclaimKey;
         switchScreen('host-screen');
         logTerminal('INIT', `Room initiated [${id}] (Reclaim Key: ${myHostReclaimKey})`);
-
+        
         saveHostStateToStorage();
         setInterval(hostHeartbeatLoop, 100);
     });
@@ -372,7 +379,7 @@ function reclaimHostRoom() {
 
     const btn = document.getElementById('btn-reclaim-host');
     const originalText = btn.innerText;
-    btn.innerText = 'RECLAIMING ROOM';
+    btn.innerText = 'RECLAIMING ROOM...';
     btn.disabled = true;
 
     isHost = true;
@@ -454,9 +461,9 @@ function reclaimHostRoom() {
         document.getElementById('host-room-id-val').innerText = id;
         document.getElementById('host-reclaim-key-val').innerText = myHostReclaimKey;
         switchScreen('host-screen');
-
+        
         logTerminal('RECOVER', `Reclaimed control room [${id}]. Engine set to STANDBY.`);
-
+        
         saveHostStateToStorage();
         updateHostDirectoryUI();
         syncHostSettingsUI();
@@ -529,7 +536,7 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
 
     const btn = document.getElementById('btn-init-player');
     const originalText = btn.innerText;
-    btn.innerText = 'CONNECTING';
+    btn.innerText = 'CONNECTING...';
     btn.disabled = true;
 
     // Generate random transient Peer ID for player's signaling session
@@ -545,7 +552,7 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
 
     peer.on('open', (myPeerId) => {
         console.log(`Local Peer created: ${myPeerId}`);
-
+        
         // Initiate data channel connection
         const conn = peer.connect(roomIdInput, { reliable: true });
         hostConnection = conn;
@@ -553,9 +560,9 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
         // Safety: Ensure subscription handlers are bound BEFORE sending the JOIN handshake
         conn.on('open', () => {
             clearTimeout(connectionTimeout); // Cancel connection timeout
-
+            
             myTeamName = teamInput; // Set global team name
-
+            
             const savedColor = sessionStorage.getItem('quiz_buzzer_player_color') || 'amber';
             conn.send({
                 type: 'JOIN',
@@ -619,7 +626,7 @@ document.getElementById('btn-init-spectator').addEventListener('click', () => {
 
     const btn = document.getElementById('btn-init-spectator');
     const originalText = btn.innerText;
-    btn.innerText = 'CONNECTING AS SPECTATOR';
+    btn.innerText = 'CONNECTING AS SPECTATOR...';
     btn.disabled = true;
 
     peer = new Peer(null, getPeerOptions());
@@ -751,7 +758,7 @@ function syncDirectoryTabsVisibility() {
     const hostTabs = document.getElementById('host-directory-tabs');
     const playerTabs = document.getElementById('player-directory-tabs');
     const specTabs = document.getElementById('spectator-directory-tabs');
-
+    
     if (hostTabs) hostTabs.style.display = displayStyle;
     if (playerTabs) playerTabs.style.display = displayStyle;
     if (specTabs) specTabs.style.display = displayStyle;
@@ -804,7 +811,7 @@ function toggleAdvancedSignaling() {
 function applyPlayerTheme(colorName) {
     const playerScreen = document.getElementById('player-screen');
     if (!playerScreen) return;
-
+    
     const colors = {
         green: { primary: '#00ff66', dim: 'rgba(0, 255, 102, 0.08)', glow: 'rgba(0, 255, 102, 0.35)' },
         amber: { primary: '#ffb300', dim: 'rgba(255, 179, 0, 0.08)', glow: 'rgba(255, 179, 0, 0.25)' },
@@ -812,9 +819,9 @@ function applyPlayerTheme(colorName) {
         cyan: { primary: '#00f0ff', dim: 'rgba(0, 240, 255, 0.08)', glow: 'rgba(0, 240, 255, 0.35)' },
         magenta: { primary: '#ff00f0', dim: 'rgba(255, 0, 240, 0.08)', glow: 'rgba(255, 0, 240, 0.35)' }
     };
-
+    
     const theme = colors[colorName] || colors.amber;
-
+    
     playerScreen.style.setProperty('--player-accent', theme.primary);
     playerScreen.style.setProperty('--player-accent-dim', theme.dim);
     playerScreen.style.setProperty('--player-accent-glow', theme.glow);
@@ -831,7 +838,7 @@ function logTerminal(tag, message) {
     const timeStr = new Date().toTimeString().split(' ')[0];
     const entry = document.createElement('div');
     entry.className = 'log-entry';
-
+    
     let tagColor = 'var(--text-muted)';
     if (tag === 'JOIN' || tag === 'CORRECT') tagColor = 'var(--accent-green)';
     if (tag === 'LEAVE' || tag === 'INCORRECT' || tag === 'CONN_ERR' || tag === 'CONFLICT') tagColor = 'var(--accent-red)';
@@ -842,13 +849,13 @@ function logTerminal(tag, message) {
         <span class="log-tag" style="color: ${tagColor};">[${tag}]</span>
         <span class="log-body">${escapeHTML(message)}</span>
     `;
-
+    
     container.appendChild(entry);
     container.scrollTop = container.scrollHeight;
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>'"]/g,
+    return str.replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
 }
@@ -873,7 +880,7 @@ function handleHostIncomingData(conn, data) {
         handleHostPing(conn, data);
         return;
     }
-
+    
     // NTP Time sync handshake responder
     if (data.type === 'TIME_SYNC') {
         conn.send({
@@ -1143,7 +1150,7 @@ function handleHostPing(conn, data) {
     if (scores[cid]) {
         scores[cid].lastPing = Date.now();
         scores[cid].status = 'online';
-
+        
         // Update player ping latency on the Host Scoreboard
         const pingEl = document.getElementById(`ping-val-${cid}`);
         if (pingEl && data.lastRtt !== undefined) {
@@ -1251,7 +1258,7 @@ function updateTeamsStandingsUI(list) {
             if (!t.online) {
                 tr.className = 'player-row-offline';
             }
-
+            
             const rankBadge = `<span style="font-weight:bold; color:var(--accent-amber)">#${i + 1}</span>`;
             const tooltipText = `Members: ${t.members.join(', ')}`;
             const scoreVal = settings.hideScores ? '<span style="color: var(--accent-amber); font-weight:bold;">???</span>' : `<span style="font-weight:bold;">${t.score}</span>`;
@@ -1271,7 +1278,7 @@ function updateTeamsStandingsUI(list) {
 function updateHostDirectoryUI(list) {
     const tbody = document.getElementById('host-directory-tbody');
     tbody.innerHTML = '';
-
+    
     list.forEach(p => {
         const tr = document.createElement('tr');
         if (p.status === 'offline') {
@@ -1335,7 +1342,7 @@ function broadcastState() {
 function updateHostUI() {
     const label = document.getElementById('host-round-state');
     label.className = 'status-current';
-
+    
     if (roundStatus === 'idle') {
         label.innerText = 'STANDBY';
         label.classList.add('text-glow-amber');
@@ -1443,7 +1450,7 @@ function hostStartRound() {
 
     roundStatus = 'active';
     roundStartTime = Date.now();
-
+    
     if (settings.timed) {
         timeRemaining = parseFloat(document.getElementById('host-timer-duration').value) || 10;
     } else {
@@ -1452,7 +1459,7 @@ function hostStartRound() {
 
     updateTimerDisplay(timeRemaining);
     logTerminal('GAME', `Round ${currentRound} started. Buzzers armed.`);
-
+    
     broadcastRoster();
     broadcast({
         type: 'ROUND_START',
@@ -1588,7 +1595,7 @@ function saveEditPlayer() {
 
     const profile = scores[activeEditingClientId];
     const newScore = parseInt(document.getElementById('modal-edit-score').value) || 0;
-
+    
     let newStreak = 0;
     if (settings.streakMultipliers) {
         newStreak = parseInt(document.getElementById('modal-edit-streak').value) || 0;
@@ -1610,7 +1617,7 @@ function saveEditPlayer() {
  */
 function hostMarkAnswer(isCorrect) {
     if (buzzQueue.length === 0) return;
-
+    
     // Record backup deltas for this round before we start modifying the queue
     const firstBuzzTime = buzzQueue[0].buzzTime;
     buzzQueue.forEach((item, index) => {
@@ -1664,7 +1671,7 @@ function hostMarkAnswer(isCorrect) {
         if (profile.doubleDownActive) {
             points *= 2;
         }
-
+        
         if (settings.streakMultipliers) {
             if (profile.streak < 0) {
                 profile.streak = 1; // Reset cold streak on correct answer
@@ -1689,7 +1696,7 @@ function hostMarkAnswer(isCorrect) {
         profile.shieldActive = false;     // Reset Shield flag
 
         logTerminal('CORRECT', `${profile.username} answered CORRECTLY! (+${points} pts)${wasShielded ? ' [🛡️ SHIELDED]' : ''}.`);
-
+        
         playCorrect();
         broadcast({ type: 'SOUND_TRIGGER', cue: 'correct' });
 
@@ -1761,12 +1768,12 @@ function hostMarkAnswer(isCorrect) {
         broadcastRoster();
 
         // Pass hotseat to backup queued player
-        buzzQueue.shift();
+        buzzQueue.shift(); 
 
         if (buzzQueue.length > 0) {
             const nextHotseat = buzzQueue[0];
             logTerminal('GAME', `Hotseat passed to next queued player: ${nextHotseat.username}`);
-
+            
             roundStatus = 'hotseat';
             if (settings.timed) {
                 timeRemaining = parseFloat(document.getElementById('host-timer-duration').value) || 10;
@@ -1836,10 +1843,6 @@ function handleHostBuzz(data) {
     }
 
     const reactionTime = buzzTime - roundStartTime;
-    profile.stats.buzzReactionTimes.push(reactionTime);
-    if (profile.doubleDownActive) {
-        profile.stats.doubleDownCount++;
-    }
 
     const buzzRecord = {
         clientId: cid,
@@ -1854,10 +1857,14 @@ function handleHostBuzz(data) {
         // 1. First buzz: Locks hotseat, starts countdown, opens 3s lockout window
         buzzQueue.push(buzzRecord);
         profile.stats.firstPlaceBuzzCount = (profile.stats.firstPlaceBuzzCount || 0) + 1;
+        profile.stats.buzzReactionTimes.push(reactionTime);
+        if (profile.doubleDownActive) {
+            profile.stats.doubleDownCount++;
+        }
         roundStatus = 'hotseat';
-
+        
         logTerminal('BUZZ', `${profile.username} BUZZED IN FIRST!`);
-
+        
         lockoutActive = true;
         lockoutTimer = setTimeout(() => {
             lockoutActive = false;
@@ -1876,6 +1883,10 @@ function handleHostBuzz(data) {
         // 2. Subsequent buzzes within 3s window: sort queue by absolute clocksync time
         buzzQueue.push(buzzRecord);
         buzzQueue.sort((a, b) => a.buzzTime - b.buzzTime);
+        profile.stats.buzzReactionTimes.push(reactionTime);
+        if (profile.doubleDownActive) {
+            profile.stats.doubleDownCount++;
+        }
 
         logTerminal('BUZZ', `${profile.username} queued in backup position.`);
         broadcastState();
@@ -1897,7 +1908,7 @@ function handleHostBuzz(data) {
 function startAnsweringCountdown() {
     if (timerInterval) clearInterval(timerInterval);
     lastTickTime = Date.now();
-
+    
     timerInterval = setInterval(() => {
         const now = Date.now();
         const delta = (now - lastTickTime) / 1000;
@@ -2005,11 +2016,11 @@ function broadcastSettings() {
         type: 'SETTINGS_UPDATE',
         settings: settings
     });
-
+    
     if (rosterChanged) {
         broadcastRoster();
     }
-
+    
     saveHostStateToStorage();
 }
 
@@ -2055,7 +2066,7 @@ function hostHeartbeatLoop() {
 
     for (let cid in scores) {
         const record = scores[cid];
-
+        
         // 1. Offline detection: if player ping missing for > 4000ms
         if (record.status === 'online' && (now - record.lastPing > 4000)) {
             record.status = 'offline';
@@ -2118,12 +2129,17 @@ function handlePlayerIncomingData(data) {
     }
 
     if (data.type === 'JOIN_SUCCESS') {
+        if (data.settings) {
+            settings = data.settings;
+            syncPlayerSettingsUI();
+            syncDirectoryTabsVisibility();
+        }
         myClientId = data.clientId;
         myUsername = data.username;
         sessionStorage.setItem('quiz_buzzer_client_id', myClientId); // Persist ID
-
+        
         document.getElementById('modal-player-password').style.display = 'none';
-
+        
         if (data.role === 'spectator') {
             document.getElementById('spectator-hud-room-id').innerText = hostConnection.peer;
             switchScreen('spectator-screen');
@@ -2136,16 +2152,16 @@ function handlePlayerIncomingData(data) {
 
         document.getElementById('player-hud-name').innerText = myUsername;
         document.getElementById('player-hud-room-id').innerText = hostConnection.peer;
-
+        
         // Apply custom terminal theme color accent
         const savedColor = sessionStorage.getItem('quiz_buzzer_player_color') || 'amber';
         applyPlayerTheme(savedColor);
 
         switchScreen('player-screen');
-
+        
         // Start heartbeat to Host
         setInterval(playerHeartbeatLoop, 1000);
-
+        
         // Start clocksync schedule (every 3s)
         setInterval(playerTimeSyncLoop, 3000);
         playerTimeSyncLoop();
@@ -2274,7 +2290,7 @@ function updatePlayerDirectoryUI(list) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     tbody.innerHTML = '';
-
+    
     list.forEach(p => {
         const tr = document.createElement('tr');
         if (p.status === 'offline') {
@@ -2337,7 +2353,7 @@ function updatePlayerDirectoryUI(list) {
                 }
             }
             document.getElementById('player-toggle-doubledown').checked = p.doubleDownActive;
-
+            
             const shieldToggle = document.getElementById('player-toggle-shield');
             if (shieldToggle) {
                 shieldToggle.checked = p.shieldActive;
@@ -2401,11 +2417,11 @@ function syncPlayerSettingsUI() {
     const doubleContainer = document.getElementById('player-doubledown-container');
     const shieldContainer = document.getElementById('player-shield-container');
     const modifiersDisabledMsg = document.getElementById('player-modifiers-disabled-msg');
-
+    
     const ddToggle = document.getElementById('player-toggle-doubledown');
     const shieldToggle = document.getElementById('player-toggle-shield');
     const scoreEl = document.getElementById('player-my-score');
-
+    
     const canToggleDoubleDown = settings.doubleDown && (roundStatus === 'idle');
     const canToggleShield = settings.shieldMode && (roundStatus === 'idle');
 
@@ -2430,7 +2446,7 @@ function syncPlayerSettingsUI() {
     }
 
     if (ddToggle) ddToggle.disabled = !canToggleDoubleDown;
-
+    
     if (shieldToggle) {
         const labelText = shieldToggle.parentNode.querySelector('span');
         const isOnCooldown = labelText && labelText.innerText.includes('CD:');
@@ -2453,12 +2469,16 @@ function syncPlayerGameState(state) {
     roundStatus = state.roundStatus;
     settings = state.settings;
     syncPlayerSettingsUI();
+    if (lastPlayerRoster) {
+        updatePlayerDirectoryUI(lastPlayerRoster);
+        updateTeamsStandingsUI(lastPlayerRoster);
+    }
     updatePlayerQueueUI(state.queue);
 
     const statusText = document.getElementById('player-status-text');
     const hotseatBanner = document.getElementById('banner-player-hotseat');
     const timerDiv = document.getElementById('player-timer-digits');
-
+    
     const hasQueued = state.queue.length > 0;
     const amFirstInQueue = hasQueued && state.queue[0].clientId === myClientId;
     const amInQueue = state.queue.some(item => item.clientId === myClientId);
@@ -2498,7 +2518,7 @@ function syncPlayerGameState(state) {
     } else if (roundStatus === 'hotseat') {
         const currentHotseat = state.queue[0].username;
         const timeIsUp = (state.timeRemaining <= 0 && settings.timed);
-
+        
         if (amFirstInQueue) {
             statusText.innerText = timeIsUp ? 'TIME EXPIRED - AWAITING HOST' : 'YOUR HOTSEAT';
             statusText.style.color = timeIsUp ? 'var(--accent-red)' : 'var(--accent-green)';
@@ -2528,7 +2548,11 @@ function syncPlayerGameState(state) {
 function syncSpectatorGameState(state) {
     roundStatus = state.roundStatus;
     settings = state.settings;
-
+    if (lastPlayerRoster) {
+        updatePlayerDirectoryUI(lastPlayerRoster);
+        updateTeamsStandingsUI(lastPlayerRoster);
+    }
+    
     updatePlayerQueueUI(state.queue);
 
     const stateDigits = document.getElementById('spectator-round-state');
@@ -2558,7 +2582,7 @@ function syncSpectatorGameState(state) {
 function setBuzzerState(mode) {
     const btn = document.getElementById('btn-player-buzz');
     btn.className = 'buzzer-btn';
-
+    
     if (mode === 'armed') {
         btn.disabled = false;
         btn.classList.add('armed');
@@ -2707,7 +2731,7 @@ function copyReclaimKey() {
 
 /**
  * Triggers on player client when Host disconnects.
- * Locks buzzers, updates status to "HOST DISCONNECTED (RECONNECTING)",
+ * Locks buzzers, updates status to "HOST DISCONNECTED (RECONNECTING...)",
  * and initiates silent background reconnection loop without popups.
  */
 function handlePlayerHostDisconnect() {
@@ -2716,7 +2740,7 @@ function handlePlayerHostDisconnect() {
     if (isSpectator) {
         const stateDigits = document.getElementById('spectator-round-state');
         if (stateDigits) {
-            stateDigits.innerText = 'DISCONNECTED (RECONNECTING)';
+            stateDigits.innerText = 'DISCONNECTED (RECONNECTING...)';
             stateDigits.className = 'status-current text-glow-red';
         }
         if (!hostReconnectInterval) {
@@ -2726,10 +2750,10 @@ function handlePlayerHostDisconnect() {
     }
 
     setBuzzerState('disabled');
-
+    
     const statusEl = document.getElementById('player-status-text');
     if (statusEl) {
-        statusEl.innerText = 'HOST DISCONNECTED (RECONNECTING)';
+        statusEl.innerText = 'HOST DISCONNECTED (RECONNECTING...)';
         statusEl.style.color = 'var(--accent-amber)';
     }
 
@@ -2763,7 +2787,7 @@ function playerSilentHostReconnectLoop() {
 
     try {
         const conn = peer.connect(roomIdInput, { reliable: true });
-
+        
         const silentTimeout = setTimeout(() => {
             try { conn.close(); } catch(e){}
         }, 1800);
@@ -2852,10 +2876,10 @@ function calculateAwards() {
     let silentAssassin = { username: 'N/A', value: 'Min. 2 answers required' };
 
     let fastestAvg = Infinity;
-    let maxStreakVal = 1;
-    let maxColdStreakVal = 1;
+    let maxStreakVal = 1; 
+    let maxColdStreakVal = 1; 
     let maxDD = 0;
-    let closestTo3s = 0;
+    let closestTo3s = 0; 
     let maxAccuracy = 0;
     let maxAccuracyCorrectCount = 0;
 
@@ -2959,7 +2983,7 @@ function calculateTeamAwards() {
         teamStats[teamName].firstPlaces += stats.firstPlaceBuzzCount || 0;
         teamStats[teamName].doubleDowns += stats.doubleDownCount || 0;
         teamStats[teamName].penaltiesLost += stats.pointsLost || 0;
-
+        
         if (stats.buzzReactionTimes) {
             teamStats[teamName].reactionTimes.push(...stats.buzzReactionTimes);
         }
@@ -2980,12 +3004,12 @@ function calculateTeamAwards() {
     let maxShieldBlocks = 0;
     let maxFirstPlaces = 0;
     let maxDoubleDowns = 0;
-    let slowestAvg = 0;
+    let slowestAvg = 0; 
     let maxPenalties = 0;
 
     for (let tName in teamStats) {
         const t = teamStats[tName];
-
+        
         const total = t.correctCount + t.incorrectCount;
         if (total >= 2) {
             const acc = t.correctCount / total;
@@ -3056,7 +3080,7 @@ function generateStatsSummary() {
             avgSpeed: avgSpeed,
             doubleDowns: stats.doubleDownCount || 0
         };
-    }).sort((a, b) => b.score - a.score);
+    }).sort((a, b) => b.score - a.score); 
 }
 
 function renderStatsModal(data) {
@@ -3067,84 +3091,79 @@ function renderStatsModal(data) {
 
     // 1. Team Awards Section (If Active)
     if (data.awards.team) {
-        html += `
-            <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
-                <h3 style="color: var(--accent-cyan); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Team Achievements</h3>
-                <div class="stats-grid">
+        const teamAwards = data.awards.team;
+        const teamList = [
+            { id: "🏆 Powerhouse Team", color: "var(--accent-green)", data: teamAwards.powerhouse },
+            { id: "🛡️ Fortress Team", color: "var(--accent-cyan)", data: teamAwards.fortress },
+            { id: "⚡ Blitzkrieg Team", color: "var(--accent-amber)", data: teamAwards.blitzkrieg },
+            { id: "🎲 Syndicate Team", color: "#ff007f", data: teamAwards.syndicate },
+            { id: "🐢 Lagoon Team", color: "var(--text-muted)", data: teamAwards.lagoon },
+            { id: "💥 Kamikaze Team", color: "var(--accent-red)", data: teamAwards.kamikaze }
+        ];
+
+        let hasAnyTeamAward = false;
+        let gridHtml = "";
+        teamList.forEach(item => {
+            if (item.data && item.data.team !== "N/A") {
+                hasAnyTeamAward = true;
+                gridHtml += `
                     <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🏆 Powerhouse Team</div>
-                        <div style="font-weight: bold; color: var(--accent-green); margin-top: 4px;">${escapeHTML(data.awards.team.powerhouse.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.powerhouse.value)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">${item.id}</div>
+                        <div style="font-weight: bold; color: ${item.color}; margin-top: 4px;">${escapeHTML(item.data.team)}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(item.data.value)}</div>
                     </div>
-                    <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🛡️ Fortress Team</div>
-                        <div style="font-weight: bold; color: var(--accent-cyan); margin-top: 4px;">${escapeHTML(data.awards.team.fortress.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.fortress.value)}</div>
-                    </div>
-                    <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">⚡ Blitzkrieg Team</div>
-                        <div style="font-weight: bold; color: var(--accent-amber); margin-top: 4px;">${escapeHTML(data.awards.team.blitzkrieg.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.blitzkrieg.value)}</div>
-                    </div>
-                    <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🎲 Syndicate Team</div>
-                        <div style="font-weight: bold; color: #ff007f; margin-top: 4px;">${escapeHTML(data.awards.team.syndicate.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.syndicate.value)}</div>
-                    </div>
-                    <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🐢 Lagoon Team</div>
-                        <div style="font-weight: bold; color: var(--text-muted); margin-top: 4px;">${escapeHTML(data.awards.team.lagoon.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.lagoon.value)}</div>
-                    </div>
-                    <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-color: var(--accent-cyan);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">💥 Kamikaze Team</div>
-                        <div style="font-weight: bold; color: var(--accent-red); margin-top: 4px;">${escapeHTML(data.awards.team.kamikaze.team)}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(data.awards.team.kamikaze.value)}</div>
+                `;
+            }
+        });
+
+        if (hasAnyTeamAward) {
+            html += `
+                <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
+                    <h3 style="color: var(--accent-cyan); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Team Achievements</h3>
+                    <div class="stats-grid">
+                        ${gridHtml}
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     // 2. Individual Awards Section
     const ind = data.awards.individual;
-    html += `
-        <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
-            <h3 style="color: var(--accent-amber); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Player Achievements</h3>
-            <div class="stats-grid">
+    const indList = [
+        { id: "⚡ Speed Demon", color: "var(--accent-green)", data: ind.speedDemon },
+        { id: "🔥 Streak Lord", color: "var(--accent-amber)", data: ind.streakLord },
+        { id: "❄️ Ice Sculptor", color: "#66ccff", data: ind.iceSculptor },
+        { id: "🎲 High Roller", color: "#ff007f", data: ind.highRoller },
+        { id: "⏳ Edge Lord", color: "var(--accent-amber)", data: ind.edgeLord },
+        { id: "🎯 Silent Assassin", color: "var(--accent-green)", data: ind.silentAssassin }
+    ];
+
+    let hasAnyIndAward = false;
+    let indGridHtml = "";
+    indList.forEach(item => {
+        if (item.data && item.data.username !== "N/A") {
+            hasAnyIndAward = true;
+            indGridHtml += `
                 <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">⚡ Speed Demon</div>
-                    <div style="font-weight: bold; color: var(--accent-green); margin-top: 4px;">${escapeHTML(ind.speedDemon.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.speedDemon.value)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">${item.id}</div>
+                    <div style="font-weight: bold; color: ${item.color}; margin-top: 4px;">${escapeHTML(item.data.username)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(item.data.value)}</div>
                 </div>
-                <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🔥 Streak Lord</div>
-                    <div style="font-weight: bold; color: var(--accent-amber); margin-top: 4px;">${escapeHTML(ind.streakLord.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.streakLord.value)}</div>
-                </div>
-                <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">❄️ Ice Sculptor</div>
-                    <div style="font-weight: bold; color: #66ccff; margin-top: 4px;">${escapeHTML(ind.iceSculptor.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.iceSculptor.value)}</div>
-                </div>
-                <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🎲 High Roller</div>
-                    <div style="font-weight: bold; color: #ff007f; margin-top: 4px;">${escapeHTML(ind.highRoller.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.highRoller.value)}</div>
-                </div>
-                <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">⏳ Edge Lord</div>
-                    <div style="font-weight: bold; color: var(--accent-amber); margin-top: 4px;">${escapeHTML(ind.edgeLord.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.edgeLord.value)}</div>
-                </div>
-                <div class="terminal-panel" style="padding: 10px; background: rgba(0,0,0,0.3);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">🎯 Silent Assassin</div>
-                    <div style="font-weight: bold; color: var(--accent-green); margin-top: 4px;">${escapeHTML(ind.silentAssassin.username)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHTML(ind.silentAssassin.value)}</div>
+            `;
+        }
+    });
+
+    if (hasAnyIndAward) {
+        html += `
+            <div style="border-bottom: 1px dashed var(--panel-border); padding-bottom: 15px; margin-bottom: 15px;">
+                <h3 style="color: var(--accent-amber); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">🏆 Player Achievements</h3>
+                <div class="stats-grid">
+                    ${indGridHtml}
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    }
 
     // 3. Team Standings Table (If Active)
     if (data.awards.team) {

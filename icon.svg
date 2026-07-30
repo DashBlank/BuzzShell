@@ -17,8 +17,8 @@
     </filter>
   </defs>
 
-  <!-- Cyberpunk background card -->
-  <circle cx="256" cy="256" r="220" fill="#0c0c14"/>
+  <!-- Solid Cyberpunk background (prevents browser transparency overlay issues) -->
+  <rect width="512" height="512" fill="#0c0c14" />
 
   <!-- Outer highly detailed border -->
   <!-- Outer thin circle -->

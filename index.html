@@ -8,12 +8,12 @@
     <meta name="theme-color" content="#0c0c14">
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <title>BuzzShell</title>
-
+    
     <!-- Google Fonts: JetBrains Mono (Terminal look) & Orbitron (Cyberpunk HUD look) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-
+    
     <!-- PeerJS CDN: Used only as the initial broker signaling channel for WebRTC direct connection -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
@@ -27,7 +27,7 @@
          ========================================== -->
     <div id="role-screen" class="screen-container screen-active" style="max-width: 500px; justify-content: center; align-content: center; height: 100vh;">
         <h1 class="role-title">BUZZSHELL</h1>
-
+        
         <div class="terminal-panel" style="display: flex; flex-direction: column; width: 100%;">
             <!-- Lobby Tabs Header Bar -->
             <div class="role-tabs-header">
@@ -53,7 +53,7 @@
                 <h2 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--accent-amber); text-transform: uppercase;">Reclaim Control Room</h2>
                 <div class="role-form">
                     <input type="text" id="input-reclaim-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off" style="text-transform: uppercase;">
-                    <input type="text" id="input-reclaim-key" placeholder="RECLAIM KEY (SEC-XXXXXX)" autocomplete="off" style="text-transform: uppercase;">
+                    <input type="text" id="input-reclaim-key" placeholder="RECLAIM KEY (e.g. J8X9W2)" autocomplete="off" style="text-transform: uppercase;">
                     <button id="btn-reclaim-host" class="btn btn-amber" style="width: 100%; margin-top: 5px;">RECLAIM CONTROL ROOM</button>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; line-height: 1.3;">
                         Reconnect to an existing active room if your connection dropped or the tab crashed. Enter the Room ID and Reclaim Key to resume control.
@@ -68,7 +68,7 @@
                     <input type="text" id="input-player-name" placeholder="YOUR USERNAME" maxlength="10" autocomplete="off">
                     <input type="text" id="input-player-team" placeholder="TEAM NAME (OPTIONAL)" maxlength="12" autocomplete="off">
                     <input type="text" id="input-room-id" placeholder="ROOM ID (HOST CODE)" autocomplete="off">
-
+                    
                     <!-- Custom Terminal Color Selector -->
                     <div style="margin: 10px 0; text-align: left;">
                         <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;">Terminal Color Accent</div>
@@ -126,7 +126,7 @@
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <span style="color: var(--text-muted); width: 80px;">Port:</span>
                         <input type="number" id="cfg-sig-port" value="443" style="width: 80px; padding: 4px 8px; font-size: 0.75rem; text-align: center; font-family: var(--font-terminal);">
-
+                        
                         <label class="switch-container" style="flex: 1; justify-content: flex-end; gap: 8px; margin: 0; padding: 0;">
                             <span style="font-size: 0.7rem; color: var(--text-muted);">SECURE (WSS)</span>
                             <input type="checkbox" id="cfg-sig-secure" checked>
@@ -150,7 +150,7 @@
          SCREEN 2: HOST (QUIZMASTER) DASHBOARD
          ========================================== -->
     <div id="host-screen" class="screen-container">
-
+        
         <!-- Host Header / HUD Bar -->
         <div class="terminal-panel" style="padding: 15px 20px;">
             <div class="player-header" style="border: none; padding: 0; margin: 0;">
@@ -177,10 +177,10 @@
 
         <!-- Host Layout Grid -->
         <div class="host-grid">
-
+            
             <!-- Column 1 (Left): Settings & Buzz Queue -->
             <div style="display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0;">
-
+                
                 <!-- Game Settings Panel -->
                 <div class="terminal-panel" style="flex-shrink: 0;">
                     <div class="hud-header">
@@ -193,7 +193,7 @@
                             <input type="checkbox" id="host-toggle-timed" checked onchange="toggleTimedConfig(this.checked)">
                             <div class="custom-switch"></div>
                         </label>
-
+                        
                         <!-- Answering Countdown Duration -->
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                             <span style="font-size: 0.85rem; color: var(--text-muted);">DURATION (SEC)</span>
@@ -270,7 +270,7 @@
 
             <!-- Middle panel: Central Display -->
             <div class="central-display">
-
+                
                 <!-- Engine state display -->
                 <div class="terminal-panel status-box">
                     <div class="status-label">Engine State</div>
@@ -352,7 +352,7 @@
          SCREEN 3: PLAYER SCREEN
          ========================================== -->
     <div id="player-screen" class="screen-container">
-
+        
         <!-- Player Header / Ping HUD Bar -->
         <div class="terminal-panel" style="padding: 15px 20px;">
             <div class="player-header" style="border: none; padding: 0; margin: 0;">
@@ -383,7 +383,7 @@
 
         <!-- Player Split Grid Layout -->
         <div class="player-grid">
-
+            
             <!-- Left panel: Big Buzzer control -->
             <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
                 <div class="terminal-panel buzzer-box">
@@ -401,7 +401,7 @@
                         <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 5px;">MY SCORE</span>
                         <span id="player-my-score" class="hud-value text-glow-player" style="font-size: 1.5rem;">0</span>
                     </div>
-
+                    
                     <div class="terminal-panel" style="padding: 12px; background: rgba(10,10,15,0.4); display: flex; flex-direction: column; justify-content: center; gap: 8px;">
                         <!-- Double down checkbox switch -->
                         <label id="player-doubledown-container" class="switch-container" style="width: 100%; display: none; justify-content: space-between; align-items: center;">
@@ -425,6 +425,16 @@
 
             <!-- Right panel: Scoreboard Directory & Buzz Queue stacked -->
             <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
+                <!-- Player Buzz Queue -->
+                <div class="terminal-panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="hud-header">
+                        <span class="hud-title">Buzz Queue</span>
+                    </div>
+                    <div class="queue-list" id="player-queue-list" style="flex-grow: 1; overflow-y: auto;">
+                        <!-- Dynamic incoming buzz list sorted in real-time -->
+                    </div>
+                </div>
+
                 <!-- Lobby Directory -->
                 <div class="terminal-panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                     <div class="hud-header">
@@ -466,16 +476,6 @@
                     <!-- Spectators container -->
                     <div id="player-spectators-container" style="border-top: 1px dashed var(--panel-border); padding-top: 10px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); display: none;">
                         SPECTATORS ONLOOKING: <span id="player-spectator-list" style="color: var(--accent-cyan); font-weight: bold;">NONE</span>
-                    </div>
-                </div>
-
-                <!-- Player Buzz Queue -->
-                <div class="terminal-panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-                    <div class="hud-header">
-                        <span class="hud-title">Buzz Queue</span>
-                    </div>
-                    <div class="queue-list" id="player-queue-list" style="flex-grow: 1; overflow-y: auto;">
-                        <!-- Dynamic incoming buzz list sorted in real-time -->
                     </div>
                 </div>
             </div>
@@ -565,12 +565,12 @@
         <!-- Central Display layout -->
         <div class="spectator-grid">
             <!-- Left Panel: Large Standings & Timer -->
-            <div style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
+            <div class="spectator-standings-panel" style="display: flex; flex-direction: column; gap: 15px; height: 100%; min-height: 0;">
                 <!-- Large Timer Display -->
                 <div class="terminal-panel" style="text-align: center; padding: 25px;">
                     <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; letter-spacing: 1px;">ROUND STATUS</div>
                     <div id="spectator-round-state" class="status-current text-glow-amber" style="font-size: 1.5rem; margin-bottom: 15px;">STANDBY</div>
-
+                    
                     <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Time Remaining</div>
                     <div id="spectator-timer-digits" class="timer-digits text-glow-green" style="font-size: 3.5rem; font-family: var(--font-display);">00.00</div>
                 </div>
@@ -621,7 +621,7 @@
             </div>
 
             <!-- Right Panel: Active Buzz Queue -->
-            <div class="terminal-panel" style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
+            <div class="terminal-panel spectator-queue-panel" style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
                 <div class="hud-header">
                     <span class="hud-title">ACTIVE BUZZ QUEUE</span>
                 </div>
