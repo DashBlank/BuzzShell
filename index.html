@@ -16,6 +16,7 @@
     
     <!-- PeerJS CDN: Used only as the initial broker signaling channel for WebRTC direct connection -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <!-- Project Stylesheet link -->
     <link rel="stylesheet" href="style.css">
@@ -167,6 +168,8 @@
                             RECLAIM KEY: <span id="host-reclaim-key-val" style="margin-left: 6px; font-weight: bold; color: var(--accent-amber);">----</span>
                             <span id="copy-key-tooltip" class="copied-tooltip">COPIED!</span>
                         </span>
+                        <!-- Invite / QR Code modal trigger button -->
+                        <button class="btn btn-action-sm" onclick="showInviteModal()" style="margin: 0; padding: 2px 8px; font-size: 0.72rem; border-color: var(--accent-cyan); color: var(--accent-cyan);">INVITE / QR</button>
                     </div>
                 </div>
                 <div class="player-stats">
@@ -538,6 +541,32 @@
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px;">
                     <button class="btn" onclick="cancelPlayerPasswordModal()">CANCEL</button>
                     <button class="btn btn-amber" onclick="submitPlayerPasswordModal()">JOIN ROOM</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ROOM INVITE & QR CODE MODAL
+         ========================================== -->
+    <div id="modal-room-invite" class="modal-overlay" style="display: none;">
+        <div class="terminal-panel modal-box" style="text-align: center;">
+            <div class="hud-header" style="margin-bottom: 15px;">
+                <span class="hud-title" style="color: var(--accent-cyan);">INSTANT ROOM INVITE</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    Scan QR Code with mobile camera or share the direct link below:
+                </div>
+                <div id="qr-container" style="background: white; padding: 12px; border-radius: 4px; display: inline-block;">
+                    <div id="qr-canvas"></div>
+                </div>
+                <div style="width: 100%; display: flex; gap: 8px;">
+                    <input type="text" id="invite-url-input" readonly style="flex: 1; padding: 8px; background: rgba(0,0,0,0.6); border: 1px solid var(--panel-border); color: var(--accent-green); font-family: var(--font-terminal); font-size: 0.75rem;">
+                    <button class="btn btn-cyan" onclick="copyInviteUrl()" style="flex-shrink: 0;">COPY LINK</button>
+                </div>
+                <div style="display: flex; justify-content: flex-end; width: 100%;">
+                    <button class="btn" onclick="closeInviteModal()">CLOSE</button>
                 </div>
             </div>
         </div>

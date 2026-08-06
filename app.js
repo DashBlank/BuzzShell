@@ -1,12 +1,15 @@
 /**
- * Q-Terminal Quiz Buzzer Game Engine
+ * BuzzShell Quiz Buzzer Game Engine
  * Authoritative WebRTC Edition (via PeerJS)
  * 
  * Features:
  * - Peer-to-Peer direct connection (signaling bypassed after handshake).
- * - NTP-style clocksync algorithm for sub-millisecond buzzer order sorting.
+ * - Dual-channel WebRTC DataChannels (Reliable Control + Unordered Fast UDP Channel).
+ * - NTP-style clocksync algorithm with Linear Regression Clock Drift Compensation.
  * - Browser-synthesized Web Audio oscillators (Sawtooth/Sine) for latency-free sounds.
- * - Heartbeat scanning (100ms) with 2-minute reconnection grace periods.
+ * - Heartbeat scanning (100ms) with 5-minute reconnection grace periods.
+ * - One-Tap QR Code Room Invites & auto-filled Room parameters.
+ * - Desktop Accessibility Keyboard Shortcuts (Space/Enter to buzz, Space/C for host).
  * - Fully isolated warnings on player tabs, clean Host dashboards.
  */
 
@@ -27,9 +30,11 @@ let activeDirectoryTab = 'players'; // Directory view state ('players' | 'teams'
  * - Player role: holds the single connection to the Host
  */
 let playerConnections = {}; 
+let fastConnections = {};     // Maps ClientId -> fast UDP-style DataConnection on Host side
 let spectatorConnections = {}; // Maps spectator ClientId -> active PeerJS DataConnection
 let spectators = {};          // Spectator metadata profile registry (holds display names)
 let hostConnection = null; 
+let hostFastConnection = null; // Fast UDP-style unordered DataChannel for low-latency buzz/ntp
 let isSpectator = false;      // True if this tab is spectating the lobby (read-only TV dashboard role) 
 
 /**
@@ -175,10 +180,20 @@ function playIncorrect() {
 // TIMING & CLOCKSYNC MECHANICS
 // ==========================================
 let clockOffset = 0;   // NTP calculated time difference (Host Time - Player Time)
+let clockDriftRate = 0; // Linear regression drift rate compensation
+let lastSyncSampleTime = 0; // Anchor timestamp for drift calculation
 let currentRtt = 0;     // Network Round Trip Time (RTT) in milliseconds
-let syncHistory = [];   // Array of { offset, rtt } to filter network jitter
+let syncHistory = [];   // Array of { timestamp, offset, rtt } to filter network jitter
 let lastPlayerRoster = null; // Caches latest roster for instant UI re-renders
 let roundStartTime = 0;      // Authoritative round start time (Host clocksync anchor)
+
+function getSynchronizedTimestamp() {
+    if (lastSyncSampleTime && clockDriftRate) {
+        const driftCorrection = (Date.now() - lastSyncSampleTime) * clockDriftRate;
+        return Date.now() + clockOffset + driftCorrection;
+    }
+    return Date.now() + clockOffset;
+}
 
 // ==========================================
 // GAME STATE MANAGEMENT
@@ -296,6 +311,37 @@ window.addEventListener('load', () => {
         const kEl = document.getElementById('input-reclaim-key');
         if (rEl) rEl.value = savedRoom;
         if (kEl) kEl.value = savedKey;
+    }
+
+    // Auto-fill player lobby inputs if previous player session exists in localStorage
+    const savedPlayerName = localStorage.getItem('quiz_buzzer_player_name');
+    const savedPlayerTeam = localStorage.getItem('quiz_buzzer_player_team');
+    const savedPlayerRoom = localStorage.getItem('quiz_buzzer_player_room');
+    const savedPlayerColor = localStorage.getItem('quiz_buzzer_player_color') || sessionStorage.getItem('quiz_buzzer_player_color');
+    
+    if (savedPlayerName) {
+        const pNameEl = document.getElementById('input-player-name');
+        if (pNameEl) pNameEl.value = savedPlayerName;
+    }
+    if (savedPlayerTeam) {
+        const pTeamEl = document.getElementById('input-player-team');
+        if (pTeamEl) pTeamEl.value = savedPlayerTeam;
+    }
+    if (savedPlayerRoom) {
+        const pRoomEl = document.getElementById('input-room-id');
+        if (pRoomEl) pRoomEl.value = savedPlayerRoom;
+    }
+    if (savedPlayerColor) {
+        const radio = document.querySelector(`input[name="player-theme-color"][value="${savedPlayerColor}"]`);
+        if (radio) radio.checked = true;
+    }
+
+    // Auto-fill from URL invite params (?room=XXXXX)
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramRoom = urlParams.get('room');
+    if (paramRoom) {
+        const pRoomEl = document.getElementById('input-room-id');
+        if (pRoomEl) pRoomEl.value = paramRoom.trim().toUpperCase();
     }
 });
 
@@ -476,6 +522,20 @@ function reclaimHostRoom() {
 
 function bindHostPeerEvents(btn, originalText, clearTimerCallback) {
     peer.on('connection', (conn) => {
+        if (conn.label === 'fast') {
+            conn.on('data', (data) => {
+                if (data && data.clientId) {
+                    fastConnections[data.clientId] = conn;
+                }
+                handleHostIncomingData(conn, data);
+            });
+            conn.on('close', () => {
+                for (let cid in fastConnections) {
+                    if (fastConnections[cid] === conn) delete fastConnections[cid];
+                }
+            });
+            return;
+        }
         conn.on('data', (data) => {
             handleHostIncomingData(conn, data);
         });
@@ -526,10 +586,14 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
         alert('Please enter a valid Room ID.'); return;
     }
 
-    // Save selected color to sessionStorage
+    // Save selected color and inputs to storage for refresh prefill
     const selectedColorEl = document.querySelector('input[name="player-theme-color"]:checked');
     const selectedColor = selectedColorEl ? selectedColorEl.value : 'amber';
     sessionStorage.setItem('quiz_buzzer_player_color', selectedColor);
+    localStorage.setItem('quiz_buzzer_player_color', selectedColor);
+    localStorage.setItem('quiz_buzzer_player_name', usernameInput);
+    localStorage.setItem('quiz_buzzer_player_team', teamInput);
+    localStorage.setItem('quiz_buzzer_player_room', roomIdInput);
 
     myUsername = usernameInput;
     isHost = false;
@@ -561,6 +625,10 @@ document.getElementById('btn-init-player').addEventListener('click', () => {
         conn.on('open', () => {
             clearTimeout(connectionTimeout); // Cancel connection timeout
             
+            try {
+                hostFastConnection = peer.connect(roomIdInput, { label: 'fast', reliable: false });
+            } catch(e) { console.warn("UDP DataChannel not available, using reliable fallback."); }
+
             myTeamName = teamInput; // Set global team name
             
             const savedColor = sessionStorage.getItem('quiz_buzzer_player_color') || 'amber';
@@ -869,6 +937,57 @@ function copyRoomId() {
     });
 }
 
+function showInviteModal() {
+    if (!activeRoomId) return;
+    const modal = document.getElementById('modal-room-invite');
+    const input = document.getElementById('invite-url-input');
+    const qrDiv = document.getElementById('qr-canvas');
+    if (!modal || !input || !qrDiv) return;
+
+    let inviteUrl = `${window.location.origin}${window.location.pathname}?room=${activeRoomId}`;
+    input.value = inviteUrl;
+
+    qrDiv.innerHTML = '';
+    if (typeof QRCode !== 'undefined') {
+        try {
+            new QRCode(qrDiv, {
+                text: inviteUrl,
+                width: 160,
+                height: 160,
+                colorDark : "#0c0c14",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.M
+            });
+        } catch(e) {
+            qrDiv.innerText = 'QR Canvas error';
+        }
+    } else {
+        qrDiv.innerText = 'QR Code library offline. Share URL below.';
+        qrDiv.style.color = '#333';
+        qrDiv.style.fontSize = '0.75rem';
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeInviteModal() {
+    const modal = document.getElementById('modal-room-invite');
+    if (modal) modal.style.display = 'none';
+}
+
+function copyInviteUrl() {
+    const input = document.getElementById('invite-url-input');
+    if (!input || !input.value) return;
+    navigator.clipboard.writeText(input.value).then(() => {
+        const copyBtn = input.nextElementSibling;
+        if (copyBtn) {
+            const orig = copyBtn.innerText;
+            copyBtn.innerText = 'COPIED!';
+            setTimeout(() => { copyBtn.innerText = orig; }, 2000);
+        }
+    });
+}
+
 // ==========================================
 // HOST INCOMING MESSAGE ROUTING
 // ==========================================
@@ -883,7 +1002,7 @@ function handleHostIncomingData(conn, data) {
     
     // NTP Time sync handshake responder
     if (data.type === 'TIME_SYNC') {
-        conn.send({
+        sendFastOrReliable(conn, data.clientId, {
             type: 'TIME_SYNC_REPLY',
             clientTx: data.clientTx,
             hostRx: Date.now(),
@@ -1145,6 +1264,14 @@ function handleHostPlayerJoin(conn, data) {
     saveHostStateToStorage();
 }
 
+function sendFastOrReliable(conn, clientId, msg) {
+    if (clientId && fastConnections[clientId] && fastConnections[clientId].open) {
+        fastConnections[clientId].send(msg);
+    } else if (conn && conn.open) {
+        conn.send(msg);
+    }
+}
+
 function handleHostPing(conn, data) {
     const cid = data.clientId;
     if (scores[cid]) {
@@ -1157,7 +1284,7 @@ function handleHostPing(conn, data) {
             pingEl.innerText = `${data.lastRtt}ms`;
         }
     }
-    conn.send({ type: 'PONG', timestamp: data.timestamp });
+    sendFastOrReliable(conn, cid, { type: 'PONG', timestamp: data.timestamp });
 }
 
 // ==========================================
@@ -1435,6 +1562,22 @@ function updateHostUI() {
 // ==========================================
 // HOST ENGINE ACTION HANDLERS
 // ==========================================
+function transitionRoundState(nextState) {
+    const validTransitions = {
+        'idle': ['active', 'hotseat'],
+        'active': ['idle', 'hotseat'],
+        'hotseat': ['idle', 'active']
+    };
+    if (roundStatus === nextState) return true;
+    if (validTransitions[roundStatus] && validTransitions[roundStatus].includes(nextState)) {
+        logTerminal('STATE', `Round state transitioned: ${roundStatus.toUpperCase()} -> ${nextState.toUpperCase()}`);
+        roundStatus = nextState;
+        return true;
+    }
+    logTerminal('STATE_ERR', `Invalid round state transition blocked: ${roundStatus} -> ${nextState}`);
+    return false;
+}
+
 function hostStartRound() {
     if (timerInterval) clearInterval(timerInterval);
     buzzQueue = [];
@@ -1448,7 +1591,7 @@ function hostStartRound() {
         }
     }
 
-    roundStatus = 'active';
+    transitionRoundState('active');
     roundStartTime = Date.now();
     
     if (settings.timed) {
@@ -1474,7 +1617,7 @@ function hostClearBuzzers() {
     stopGameTimers();
     buzzQueue = [];
     lockoutActive = false;
-    roundStatus = 'idle';
+    transitionRoundState('idle');
     timeRemaining = 0;
     updateTimerDisplay(0);
 
@@ -1774,7 +1917,7 @@ function hostMarkAnswer(isCorrect) {
             const nextHotseat = buzzQueue[0];
             logTerminal('GAME', `Hotseat passed to next queued player: ${nextHotseat.username}`);
             
-            roundStatus = 'hotseat';
+            transitionRoundState('hotseat');
             if (settings.timed) {
                 timeRemaining = parseFloat(document.getElementById('host-timer-duration').value) || 10;
                 startAnsweringCountdown();
@@ -1783,7 +1926,7 @@ function hostMarkAnswer(isCorrect) {
             }
             broadcastState();
         } else {
-            roundStatus = 'idle';
+            transitionRoundState('idle');
             logTerminal('GAME', 'No backup players in queue. Standby.');
             broadcastState();
         }
@@ -1861,7 +2004,7 @@ function handleHostBuzz(data) {
         if (profile.doubleDownActive) {
             profile.stats.doubleDownCount++;
         }
-        roundStatus = 'hotseat';
+        transitionRoundState('hotseat');
         
         logTerminal('BUZZ', `${profile.username} BUZZED IN FIRST!`);
         
@@ -2075,9 +2218,9 @@ function hostHeartbeatLoop() {
             stateChanged = true;
         }
 
-        // 2. Reconnection grace: purge players offline for > 2 minutes (120,000ms)
-        if (record.status === 'offline' && record.disconnectTime && (now - record.disconnectTime > 120000)) {
-            logTerminal('PURGED', `${record.username} purged from lobby (2m grace expired).`);
+        // 2. Reconnection grace: purge players offline for > 5 minutes (300,000ms)
+        if (record.status === 'offline' && record.disconnectTime && (now - record.disconnectTime > 300000)) {
+            logTerminal('PURGED', `${record.username} purged from lobby (5m grace expired).`);
             delete scores[cid];
             if (playerConnections[cid]) {
                 playerConnections[cid].close();
@@ -2117,12 +2260,29 @@ function handlePlayerIncomingData(data) {
         // Clock Offset: calculates time gap relative to Host clock
         const offset = ((hostRx - clientTx) + (hostTx - clientRx)) / 2;
 
-        syncHistory.push({ offset, rtt });
-        if (syncHistory.length > 6) syncHistory.shift();
+        syncHistory.push({ timestamp: clientRx, offset, rtt });
+        if (syncHistory.length > 10) syncHistory.shift();
 
         // Sort offsets by minimum RTT to extract the most accurate offset estimate
         const sorted = [...syncHistory].sort((a, b) => a.rtt - b.rtt);
-        clockOffset = sorted[0].offset;
+        const bestSample = sorted[0];
+        clockOffset = bestSample.offset;
+        lastSyncSampleTime = bestSample.timestamp;
+
+        // Linear regression over lowest RTT samples to track clock drift
+        let driftRate = 0;
+        if (syncHistory.length >= 4) {
+            const n = syncHistory.length;
+            const meanT = syncHistory.reduce((s, x) => s + x.timestamp, 0) / n;
+            const meanO = syncHistory.reduce((s, x) => s + x.offset, 0) / n;
+            let num = 0, den = 0;
+            for (let i = 0; i < n; i++) {
+                num += (syncHistory[i].timestamp - meanT) * (syncHistory[i].offset - meanO);
+                den += Math.pow(syncHistory[i].timestamp - meanT, 2);
+            }
+            if (den > 0) driftRate = num / den;
+        }
+        clockDriftRate = driftRate;
 
         document.getElementById('player-hud-offset').innerText = `${clockOffset.toFixed(1)}ms`;
         return;
@@ -2606,9 +2766,9 @@ function showWarningBanner(msg) {
 function playerTriggerBuzz() {
     if (!hostConnection || !hostConnection.open) return;
 
-    const timestamp = Date.now() + clockOffset; // Synergized Host Time stamp
+    const timestamp = getSynchronizedTimestamp(); // Synergized Host Time stamp with drift compensation
 
-    hostConnection.send({
+    sendToHost({
         type: 'BUZZ',
         clientId: myClientId,
         buzzTime: timestamp
@@ -2664,11 +2824,19 @@ function playerToggleShield(checked) {
 // ==========================================
 // PERIODIC HEARTBEATS & CLIENT TIME SYNC
 // ==========================================
+function sendToHost(msg) {
+    if ((msg.type === 'BUZZ' || msg.type === 'PING' || msg.type === 'TIME_SYNC') && hostFastConnection && hostFastConnection.open) {
+        hostFastConnection.send(msg);
+    } else if (hostConnection && hostConnection.open) {
+        hostConnection.send(msg);
+    }
+}
+
 function playerHeartbeatLoop() {
     if (isHost || !myUsername) return;
 
     if (hostConnection && hostConnection.open) {
-        hostConnection.send({
+        sendToHost({
             type: 'PING',
             clientId: myClientId,
             timestamp: Date.now(),
@@ -2681,8 +2849,9 @@ function playerHeartbeatLoop() {
 
 function playerTimeSyncLoop() {
     if (hostConnection && hostConnection.open) {
-        hostConnection.send({
+        sendToHost({
             type: 'TIME_SYNC',
+            clientId: myClientId,
             clientTx: Date.now()
         });
     }
@@ -2795,6 +2964,9 @@ function playerSilentHostReconnectLoop() {
         conn.on('open', () => {
             clearTimeout(silentTimeout);
             hostConnection = conn;
+            try {
+                hostFastConnection = peer.connect(roomIdInput, { label: 'fast', reliable: false });
+            } catch(e) {}
 
             if (hostReconnectInterval) {
                 clearInterval(hostReconnectInterval);
@@ -3270,3 +3442,40 @@ function renderStatsModal(data) {
 function closeStatsModal() {
     document.getElementById('modal-game-stats').style.display = 'none';
 }
+
+// ==========================================
+// DESKTOP KEYBOARD SHORTCUTS (ACCESSIBILITY / UX)
+// ==========================================
+document.addEventListener('keydown', (e) => {
+    // Ignore keypresses if user is typing inside an input or textarea
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+    }
+
+    // Host Dashboard Shortcuts
+    if (isHost && document.getElementById('host-screen').classList.contains('screen-active')) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            const startBtn = document.getElementById('btn-start-round');
+            if (startBtn && !startBtn.disabled) {
+                hostStartRound();
+            }
+        } else if (e.key === 'c' || e.key === 'C') {
+            e.preventDefault();
+            hostClearBuzzers();
+        }
+        return;
+    }
+
+    // Player Screen Shortcuts
+    if (!isHost && !isSpectator && document.getElementById('player-screen').classList.contains('screen-active')) {
+        if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            const buzzBtn = document.getElementById('btn-player-buzz');
+            if (buzzBtn && !buzzBtn.disabled && buzzBtn.classList.contains('armed')) {
+                playerTriggerBuzz();
+            }
+        }
+    }
+});
